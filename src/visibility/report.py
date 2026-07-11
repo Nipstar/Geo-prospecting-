@@ -32,15 +32,22 @@ def _addressee(conn, company) -> str:
 def build_full_report(conn, company) -> dict:
     """Run a fresh full check and render the PDF. Returns paths and scores."""
     queries = prompts.build_queries(company)
-    engines = ["chatgpt", "perplexity", "ai_overview"]
-    result = score.score_company(conn, company, queries=queries, engines=engines)
+    result = score.score_company(
+        conn, company, queries=queries, engines=config.CHECK_ENGINES, check_type="full"
+    )
 
-    # Rewrite the just-inserted mini row to check_type='full' + store path.
+    # The just-inserted row carries per-engine scores; build the report table.
     check = db.latest_check(conn, company["id"])
+    engine_labels = [
+        ("ChatGPT", "chatgpt_score"),
+        ("Claude", "claude_score"),
+        ("Gemini", "gemini_score"),
+        ("Perplexity", "perplexity_score"),
+        ("Google AI Overview", "ai_overview_score"),
+    ]
     engine_table = [
-        {"engine": "ChatGPT", "score": check["chatgpt_score"] or 0},
-        {"engine": "Perplexity", "score": check["perplexity_score"] or 0},
-        {"engine": "Google AI Overview", "score": check["ai_overview_score"] or 0},
+        {"engine": label, "score": check[col], "tested": check[col] is not None}
+        for label, col in engine_labels
     ]
     sector_word = (company["primary_service"] if _has(company, "primary_service") else None) \
         or (company["sector"] or "local business")
@@ -60,7 +67,7 @@ def build_full_report(conn, company) -> dict:
         run_date=date.today().strftime("%d %B %Y"),
         addressee=_addressee(conn, company),
         queries=queries,
-        engines=["ChatGPT", "Perplexity", "Google AI Overview"],
+        engines=["ChatGPT", "Claude", "Gemini", "Perplexity", "Google AI Overview"],
         engine_table=engine_table,
         competitors=result["competitors"],
         sector_word=sector_word,

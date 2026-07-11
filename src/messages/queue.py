@@ -59,7 +59,7 @@ def build_queue() -> dict:
                FROM touches t JOIN people p ON p.id = t.person_id
                JOIN companies c ON c.id = p.company_id
                WHERE t.touch_no = 1 AND t.status = 'drafted' AND c.channel = 'linkedin'
-               ORDER BY t.id LIMIT ?""",
+               ORDER BY COALESCE(c.pitchability_score, 0) DESC, t.id LIMIT ?""",
             (config.DAILY_CONNECTION_CAP,),
         ).fetchall()
         q["new_connections"] = [_touch_item(conn, t) for t in rows]

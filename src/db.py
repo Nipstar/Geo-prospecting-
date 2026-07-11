@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS companies (
     registered_address TEXT,
     ch_status TEXT,                 -- active | dissolved etc, skip non-active
     channel TEXT,                   -- linkedin | post | null until routed
+    pitchability_score REAL,        -- 0-100, who to pitch first (geo-slab rubric)
+    pitchability_tier TEXT,         -- premium | standard | skip
     ch_review_flag INTEGER DEFAULT 0,   -- needs manual review (unmatched / new)
     followup_date TEXT,             -- next-contact date for not_now replies
     source TEXT,
@@ -60,9 +62,14 @@ CREATE TABLE IF NOT EXISTS visibility_checks (
     run_date TEXT,
     check_type TEXT,                -- mini | full
     chatgpt_score REAL,
+    claude_score REAL,
+    gemini_score REAL,
     perplexity_score REAL,
     ai_overview_score REAL,
-    composite_score REAL,           -- 0-100, geo-slab rubric
+    composite_score REAL,           -- 0-100, geo-slab 70/30 rubric
+    platforms_tested INTEGER,
+    platforms_mentioned INTEGER,
+    cost_usd REAL,
     headline_finding TEXT,          -- one line for the opener
     competitor_named TEXT,          -- who DID show up
     report_path TEXT,
@@ -179,12 +186,30 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     return conn
 
 
+# Columns added after the first schema shipped. Backfilled onto existing DBs so
+# migrations stay a no-op safe to run on every command. (table, column, decl).
+_ADDED_COLUMNS = [
+    ("companies", "pitchability_score", "REAL"),
+    ("companies", "pitchability_tier", "TEXT"),
+    ("visibility_checks", "claude_score", "REAL"),
+    ("visibility_checks", "gemini_score", "REAL"),
+    ("visibility_checks", "platforms_tested", "INTEGER"),
+    ("visibility_checks", "platforms_mentioned", "INTEGER"),
+    ("visibility_checks", "cost_usd", "REAL"),
+]
+
+
 def run_migrations(conn: sqlite3.Connection | None = None) -> None:
-    """Create every table and index. Idempotent."""
+    """Create every table and index, then add any columns introduced later.
+    Idempotent — safe to run on every command."""
     own = conn is None
     conn = conn or get_connection()
     try:
         conn.executescript(SCHEMA)
+        for table, column, decl in _ADDED_COLUMNS:
+            existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
         conn.commit()
     finally:
         if own:

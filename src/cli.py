@@ -82,6 +82,17 @@ def ingest_ch(status: str, limit: int, dry_run: bool) -> None:
     console.print(res)
 
 
+@cli.command("pitchability")
+@click.option("--limit", default=None, type=int)
+def pitchability_cmd(limit: int | None) -> None:
+    """Recompute pitchability (who to pitch first) for all live companies."""
+    from .visibility import pitchability
+
+    tally = pitchability.rescore_all(limit)
+    console.print(f"[green]Rescored.[/green] premium={tally['premium']} "
+                  f"standard={tally['standard']} skip={tally['skip']}")
+
+
 @cli.command("route")
 @click.option("--dry-run", is_flag=True)
 @click.option("--force", is_flag=True, help="Ignore the 7-day grace before routing to post.")
@@ -153,9 +164,14 @@ def check_mini(company_id: int | None, status: str | None, limit: int, yes: bool
         if not yes and not click.confirm("Proceed?"):
             return
         for company in targets:
-            res = score.score_company(conn, company)
+            try:
+                res = score.score_company(conn, company)
+            except score.VisibilityProbeError as exc:
+                console.print(f"[red]{company['name']}: {exc}[/red]")
+                continue
             console.print(Panel(
-                f"[bold]{company['name']}[/bold]  score {res['composite']}/100\n{res['headline']}",
+                f"[bold]{company['name']}[/bold]  score {res['composite']}/100  "
+                f"({res['platforms_mentioned']}/{res['platforms_tested']} engines)\n{res['headline']}",
                 title=f"mini check · {company['town']}",
             ))
     finally:
@@ -166,7 +182,7 @@ def check_mini(company_id: int | None, status: str | None, limit: int, yes: bool
 @click.option("--company-id", required=True, type=int)
 @click.option("--yes", is_flag=True)
 def check_full(company_id: int, yes: bool) -> None:
-    from .visibility import report
+    from .visibility import report, score as score_mod
 
     est = _estimate_probe_cost(1)
     console.print(f"[yellow]Full check runs fresh probes + builds a PDF. Est cost ~${est}[/yellow]")
@@ -175,7 +191,11 @@ def check_full(company_id: int, yes: bool) -> None:
     conn = db.get_connection()
     try:
         company = db.get_company(conn, company_id)
-        res = report.build_full_report(conn, company)
+        try:
+            res = report.build_full_report(conn, company)
+        except score_mod.VisibilityProbeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
         console.print(f"[green]Report: {res['report_path']}[/green] (score {res['composite']}/100)")
     finally:
         conn.close()
@@ -193,8 +213,9 @@ def check_show(company_id: int) -> None:
             return
         t = Table(title=f"{c['name']} — latest {chk['check_type']} check")
         t.add_column("field"); t.add_column("value")
-        for k in ("run_date", "composite_score", "chatgpt_score", "perplexity_score",
-                  "ai_overview_score", "competitor_named", "report_path"):
+        for k in ("run_date", "composite_score", "platforms_mentioned", "platforms_tested",
+                  "chatgpt_score", "claude_score", "gemini_score", "perplexity_score",
+                  "ai_overview_score", "cost_usd", "competitor_named", "report_path"):
             t.add_row(k, str(chk[k]))
         console.print(t)
         console.print(Panel(chk["headline_finding"] or "", title="headline finding"))

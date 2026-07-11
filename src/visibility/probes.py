@@ -1,6 +1,9 @@
-"""Three visibility probes: ChatGPT (OpenAI direct), Perplexity (sonar via
-OpenRouter), Google AI Overview (SerpAPI). Raw responses are cached in
-probe_cache keyed on (query, engine, date) so re-runs are free.
+"""Visibility probes (hybrid strategy).
+
+Four consumer flagships via one OpenRouter key (ChatGPT, Claude, Gemini,
+Perplexity) plus Google AI Overview via SerpAPI. Each probe returns
+{text, cost_usd, answered}. Raw responses are cached in probe_cache keyed on
+(query, engine, date) so re-runs are free.
 """
 from __future__ import annotations
 
@@ -9,7 +12,8 @@ from datetime import date
 
 import requests
 
-from .. import config, db, llm
+from .. import config, db
+from . import ai_query
 
 
 def _cached(conn, query: str, engine: str) -> str | None:
@@ -20,109 +24,59 @@ def _store(conn, query: str, engine: str, text: str) -> None:
     db.probe_cache_put(conn, query, engine, date.today().isoformat(), text)
 
 
-def _backoff(attempt: int) -> None:
-    time.sleep(2 ** attempt)
-
-
-# --- ChatGPT (OpenAI direct) ----------------------------------------------
-def probe_chatgpt(conn, query: str) -> str:
-    cached = _cached(conn, query, "chatgpt")
+def probe_model(conn, engine: str, query: str) -> dict:
+    """One of the four OpenRouter platforms. engine is a CHECK_MODELS key."""
+    cached = _cached(conn, query, engine)
     if cached is not None:
-        return cached
-    from openai import OpenAI
-
-    if not config.OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY is not set (needed for the ChatGPT probe).")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
-    prompt = (
-        f"{query}. Answer as you normally would for a UK user, naming specific "
-        "businesses you would recommend."
-    )
-    text = ""
-    for attempt in range(3):
-        try:
-            try:
-                resp = client.chat.completions.create(
-                    model=config.OPENAI_PROBE_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=500,
-                )
-            except Exception:
-                resp = client.chat.completions.create(
-                    model=config.OPENAI_PROBE_MODEL_FALLBACK,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=500,
-                )
-            text = resp.choices[0].message.content or ""
-            break
-        except Exception:  # noqa: BLE001
-            if attempt == 2:
-                raise
-            _backoff(attempt)
-    _store(conn, query, "chatgpt", text)
-    return text
+        answered = bool(cached) and not cached.startswith("ERROR")
+        return {"text": "" if not answered else cached, "cost_usd": 0.0, "answered": answered}
+    model = config.CHECK_MODELS[engine]
+    time.sleep(0.2)  # gentle rate limit
+    res = ai_query.query_openrouter_full(query, model)
+    if not res:
+        _store(conn, query, engine, "ERROR")
+        return {"text": "", "cost_usd": 0.0, "answered": False}
+    _store(conn, query, engine, res["text"])
+    return {"text": res["text"], "cost_usd": res.get("cost_usd", 0.0), "answered": True}
 
 
-# --- Perplexity (sonar via OpenRouter) ------------------------------------
-def probe_perplexity(conn, query: str) -> str:
-    cached = _cached(conn, query, "perplexity")
+def probe_ai_overview(conn, query: str) -> dict:
+    """Google AI Overview via SerpAPI."""
+    engine = config.AI_OVERVIEW_ENGINE
+    cached = _cached(conn, query, engine)
     if cached is not None:
-        return cached
-    prompt = (
-        f"{query}. Answer for a UK user, naming specific businesses you would "
-        "recommend."
-    )
-    text = ""
-    for attempt in range(3):
-        try:
-            text = llm.complete(
-                "perplexity_probe", user=prompt, temperature=0.3, max_tokens=500
-            )
-            break
-        except Exception:  # noqa: BLE001
-            if attempt == 2:
-                raise
-            _backoff(attempt)
-    _store(conn, query, "perplexity", text)
-    return text
-
-
-# --- Google AI Overview (SerpAPI) -----------------------------------------
-def probe_ai_overview(conn, query: str) -> str:
-    cached = _cached(conn, query, "ai_overview")
-    if cached is not None:
-        return cached
+        answered = bool(cached) and not cached.startswith("ERROR")
+        return {"text": "" if not answered else cached, "cost_usd": 0.0, "answered": answered}
     if not config.SERPAPI_KEY:
-        raise RuntimeError("SERPAPI_KEY is not set (needed for the AI Overview probe).")
+        # AI Overview is optional in the hybrid; skip cleanly if no key.
+        return {"text": "", "cost_usd": 0.0, "answered": False}
     text = ""
     for attempt in range(3):
         try:
             resp = requests.get(
                 "https://serpapi.com/search",
                 params={
-                    "q": query,
-                    "location": "United Kingdom",
-                    "gl": "uk",
-                    "hl": "en",
-                    "api_key": config.SERPAPI_KEY,
+                    "q": query, "location": "United Kingdom",
+                    "gl": "uk", "hl": "en", "api_key": config.SERPAPI_KEY,
                 },
                 timeout=30,
             )
             resp.raise_for_status()
-            data = resp.json()
-            text = _extract_ai_overview(data)
+            text = _extract_ai_overview(resp.json())
             break
         except Exception:  # noqa: BLE001
             if attempt == 2:
-                raise
-            _backoff(attempt)
-    _store(conn, query, "ai_overview", text)
-    return text
+                _store(conn, query, engine, "ERROR")
+                return {"text": "", "cost_usd": 0.0, "answered": False}
+            time.sleep(2 ** attempt)
+    _store(conn, query, engine, text)
+    answered = not text.startswith("NO_AI_OVERVIEW") or bool(text.replace("NO_AI_OVERVIEW", "").strip())
+    return {"text": text, "cost_usd": config.COST_PER_PROBE["ai_overview"], "answered": answered}
 
 
 def _extract_ai_overview(data: dict) -> str:
     """Pull the AI Overview block text if present, else fall back to organic
-    result titles so scoring still has signal."""
+    titles so scoring still has signal."""
     ai = data.get("ai_overview")
     if isinstance(ai, dict):
         chunks = []
@@ -137,13 +91,12 @@ def _extract_ai_overview(data: dict) -> str:
                 chunks.append(ref["title"])
         if chunks:
             return "\n".join(chunks)
-    # No AI Overview shown: capture organic titles as a weaker signal.
     titles = [r.get("title", "") for r in data.get("organic_results", [])[:8]]
     return "NO_AI_OVERVIEW\n" + "\n".join(t for t in titles if t)
 
 
-PROBES = {
-    "chatgpt": probe_chatgpt,
-    "perplexity": probe_perplexity,
-    "ai_overview": probe_ai_overview,
-}
+def run_probe(conn, engine: str, query: str) -> dict:
+    """Dispatch a single (engine, query) probe."""
+    if engine == config.AI_OVERVIEW_ENGINE:
+        return probe_ai_overview(conn, query)
+    return probe_model(conn, engine, query)

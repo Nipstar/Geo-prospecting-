@@ -191,7 +191,7 @@ def draft_batch(status: str = "checked", limit: int = 10) -> list[dict]:
             """SELECT p.id FROM people p JOIN companies c ON c.id = p.company_id
                WHERE c.status = ? AND c.channel = 'linkedin'
                  AND p.linkedin_url IS NOT NULL AND p.linkedin_url != ''
-               ORDER BY c.id LIMIT ?""",
+               ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?""",
             (status, limit),
         ).fetchall()
         person_ids = [r["id"] for r in rows]

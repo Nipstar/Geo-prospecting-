@@ -130,7 +130,7 @@ def draft_letters_for_post(limit: int = 25, dry_run: bool = False) -> list[dict]
                WHERE c.channel = 'post' AND c.status NOT IN ('closed_lost','client')
                  AND EXISTS (SELECT 1 FROM visibility_checks v WHERE v.company_id = c.id)
                  AND NOT EXISTS (SELECT 1 FROM letters l WHERE l.company_id = c.id)
-               ORDER BY c.id LIMIT ?""",
+               ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?""",
             (limit,),
         ).fetchall()
         for company in rows:

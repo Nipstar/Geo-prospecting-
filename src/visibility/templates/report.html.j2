@@ -61,8 +61,8 @@
     {% for row in engine_table %}
     <tr>
       <td>{{ row.engine }}</td>
-      <td>{% if row.score > 0 %}<span class="yes">Yes, in some answers</span>{% else %}<span class="no">Not once</span>{% endif %}</td>
-      <td class="mono">{{ row.score }}/100</td>
+      <td>{% if not row.tested %}<span class="no">Not checked</span>{% elif row.score > 0 %}<span class="yes">Yes, in some answers</span>{% else %}<span class="no">Not once</span>{% endif %}</td>
+      <td class="mono">{% if row.tested %}{{ row.score }}/100{% else %}n/a{% endif %}</td>
     </tr>
     {% endfor %}
   </table>

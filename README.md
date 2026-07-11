@@ -37,14 +37,24 @@ WeasyPrint (PDF rendering) needs system libraries on some machines:
 
 | Key | Used for |
 |---|---|
-| `OPENROUTER_API_KEY` | all LLM calls except the ChatGPT probe (routing in `src/config.py`) |
-| `OPENAI_API_KEY` | the ChatGPT visibility probe only (real engine) |
-| `SERPAPI_KEY` | Google AI Overview probe |
+| `OPENROUTER_API_KEY` | all LLM calls + the 4 visibility flagships (ChatGPT, Claude, Gemini, Perplexity) |
+| `SERPAPI_KEY` | Google AI Overview probe (optional 5th engine) |
 | `APIFY_TOKEN` | Google Places prospecting |
 | `COMPANIES_HOUSE_API_KEY` | directors, registration, SIC codes |
 | `STANNP_API_KEY` | postal letters |
 | `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID` | Airtable import |
 | `CLAIM_BASE_URL` | short-URL base for letter claim links |
+
+### Visibility check (hybrid, aligned with geo-slab)
+
+The free AI Visibility Check queries four consumer flagships through one
+OpenRouter key — `openai/gpt-5.2-chat`, `anthropic/claude-sonnet-5`,
+`google/gemini-2.5-flash`, `perplexity/sonar` — plus Google AI Overview via
+SerpAPI. The composite is the geo-slab 70/30 rubric (platform breadth + prompt
+frequency). Model slugs live in `src/config.py CHECK_MODELS`. If every engine
+errors, the check aborts rather than shipping a fake 0/100. Competitor names are
+validated by `src/visibility/competitor_gate.py` so no directory, page heading,
+or the firm's own name variant is ever printed as a rival.
 
 ## Fastest path to first send
 
@@ -88,6 +98,7 @@ uv run cli draft --batch               # in the morning
 ```
 ingest places|csv|airtable|enrich|ch   prospecting + enrichment
 route                                   set channel (linkedin | post)
+pitchability                            rank leads (geo-slab rubric) for the queue
 person add                              manual person record
 check mini|full|show                    visibility checks
 draft [--person-id | --batch]           3-touch LinkedIn sequence
@@ -152,7 +163,8 @@ src/db.py            schema, migrations, helpers, status engine
 src/config.py        model routing, caps, cadence, paths
 src/llm.py           OpenRouter wrapper (llm.complete(task, ...))
 src/ingest/          places, csv, airtable, enrich, companies_house, router
-src/visibility/      prompts, probes, score, report (the check engine)
+src/visibility/      prompts, probes, score, report, competitor_gate,
+                     ai_query, pitchability (check engine; gate + rubric from geo-slab)
 src/messages/        generate, audit, replies, pipeline, queue, voice
 src/post/            letter, stannp, claims (postal channel)
 src/reports/         brand.py (Antek tokens), stats.py (funnel + weekly)

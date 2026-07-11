@@ -27,9 +27,7 @@ for _d in (DATA_DIR, REPORTS_DIR, QUEUE_DIR, LETTERS_DIR):
 
 # --- Secrets (loaded from .env) --------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
-PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
 COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
 STANNP_API_KEY = os.getenv("STANNP_API_KEY", "")
@@ -46,29 +44,36 @@ MODELS: dict[str, str] = {
     # cheap + fast: enrichment classification, reply classification
     "classify": "openai/gpt-4o-mini",
     # quality writing: message generation, message audit
-    "generate": "anthropic/claude-sonnet-4",
+    "generate": "anthropic/claude-sonnet-5",
     # report and letter copy
-    "report_copy": "anthropic/claude-sonnet-4",
+    "report_copy": "anthropic/claude-sonnet-5",
     # weekly review narrative
-    "review": "anthropic/claude-sonnet-4",
-    # perplexity visibility probe (sonar via OpenRouter)
-    "perplexity_probe": "perplexity/sonar",
+    "review": "anthropic/claude-sonnet-5",
 }
 
-# The ChatGPT visibility probe hits OpenAI directly (must be the real engine).
-OPENAI_PROBE_MODEL = "gpt-4o-mini-search-preview"
-# Fallback if the search-capable model is unavailable on the account.
-OPENAI_PROBE_MODEL_FALLBACK = "gpt-4o-mini"
-
-# Rough $ per 1K tokens for the cost guard (order of magnitude, not billing).
-COST_PER_1K_TOKENS = {
-    "openai/gpt-4o-mini": 0.0006,
-    "anthropic/claude-sonnet-4": 0.009,
-    "perplexity/sonar": 0.001,
-    OPENAI_PROBE_MODEL: 0.0006,
+# --- Visibility check platforms (hybrid probe strategy) --------------------
+# The free AI Visibility Check queries the consumer-facing flagships a real
+# prospect's customers actually get, all through one OpenRouter key, plus Google
+# AI Overview via SerpAPI as a fifth signal. Model slugs verified in geo-slab
+# against the OpenRouter models list (2026-07-03); OpenRouter slugs drift, so
+# re-check here if a platform starts returning 404.
+CHECK_MODELS = {
+    "ChatGPT":    "openai/gpt-5.2-chat",
+    "Claude":     "anthropic/claude-sonnet-5",
+    "Gemini":     "google/gemini-2.5-flash",
+    "Perplexity": "perplexity/sonar",
 }
-# Rough $ per probe call for batch cost estimates.
-COST_PER_PROBE = {"chatgpt": 0.01, "perplexity": 0.005, "ai_overview": 0.02}
+# Google AI Overview is probed via SerpAPI, not a chat model.
+AI_OVERVIEW_ENGINE = "ai_overview"
+# Full engine order for a check (the four models above + AI Overview).
+CHECK_ENGINES = list(CHECK_MODELS.keys()) + [AI_OVERVIEW_ENGINE]
+
+# Rough $ per probe call for the pre-batch cost guard. OpenRouter cost is also
+# tracked live per call via usage accounting; these are just the estimate.
+COST_PER_PROBE = {
+    "ChatGPT": 0.01, "Claude": 0.01, "Gemini": 0.003,
+    "Perplexity": 0.005, "ai_overview": 0.02,
+}
 
 # --- LinkedIn cadence and caps ---------------------------------------------
 DAILY_CONNECTION_CAP = 15           # new connection notes per day (human-scale)

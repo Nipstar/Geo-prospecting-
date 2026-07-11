@@ -46,8 +46,17 @@ or "Limited" anywhere.
   charcoal #2C2C2C, Outfit display, DM Sans body, JetBrains Mono, zero
   border-radius, hard offset shadows).
 - Model routing lives in `src/config.py` MODELS. Every module calls
-  `llm.complete(task, ...)` so models swap in one place. Only the ChatGPT
-  visibility probe uses the OpenAI key directly.
+  `llm.complete(task, ...)` so models swap in one place.
+- Visibility check (hybrid strategy, aligned with geo-slab): four consumer
+  flagships via one OpenRouter key (`config.CHECK_MODELS`: ChatGPT
+  gpt-5.2-chat, Claude sonnet-5, Gemini 2.5-flash, Perplexity sonar) plus Google
+  AI Overview via SerpAPI. Composite is the geo-slab 70/30 rubric
+  (platforms + prompts). If every engine errors, the check raises rather than
+  writing a fake 0/100. Competitor names pass `visibility/competitor_gate.py`
+  (brand-aware, no self-mentions, no directories). Rubric, brand detection and
+  the gate are adapted from github.com/Nipstar/geo-slab.
+- Pitchability (`visibility/pitchability.py`, geo-slab rubric) orders the queue
+  and batch drafting so the best leads go first.
 
 ## PIPELINE STATUSES (companies.status)
 

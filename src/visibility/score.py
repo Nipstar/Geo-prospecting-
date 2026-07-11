@@ -1,170 +1,163 @@
-"""Visibility scoring.
+"""Visibility scoring (geo-slab 70/30 rubric).
 
-Self-contained implementation of the geo-slab rubric (github.com/Nipstar/
-geo-slab): per engine, does the company appear across the buyer-intent queries;
-which competitors appear instead; a weighted composite 0-100. Produces one
-visibility_checks row with a plain-English headline finding.
+Runs the five-engine hybrid check, detects brand mentions and competitors with
+the shared geo-slab core, gates competitor names so no junk or self-mention
+reaches a letter, and writes one visibility_checks row with a plain headline
+finding. Composite score is the blunt geo-slab formula:
 
-Engine weights reflect buyer reality: ChatGPT is where most people ask now, so
-it carries the most weight.
+    (platforms_mentioned / platforms_tested) * 70
+  + (prompts_mentioned  / prompts_total)     * 30
+
+If every engine errors (0 platforms tested) it raises rather than fabricating a
+0/100 result — a genuine invisibility and a dead API key must never look alike.
 """
 from __future__ import annotations
 
-import re
 from datetime import date
 
-from .. import db, llm
-from ..ingest.util import domain_of, normalise_name
-from . import prompts, probes
+from .. import config, db
+from ..ingest.util import domain_of
+from . import ai_query, competitor_gate, probes, prompts
 
-ENGINE_WEIGHTS = {"chatgpt": 0.45, "perplexity": 0.30, "ai_overview": 0.25}
-
-
-def _mention(company_name: str, domain: str, text: str) -> bool:
-    """Fuzzy, case-insensitive presence test. Handles '& ' vs 'and'."""
-    if not text:
-        return False
-    norm_text = normalise_name(text)
-    norm_name = normalise_name(company_name)
-    if norm_name and norm_name in norm_text:
-        return True
-    # Domain root (e.g. 'acmelettings' from acmelettings.co.uk).
-    if domain:
-        root = domain.split(".")[0]
-        if root and root in norm_text.replace(" ", ""):
-            return True
-    return False
-
-
-# Words that look like business names but are noise when extracting competitors.
-_STOP = {
-    "The", "Best", "Top", "Google", "Reviews", "Review", "Estate", "Agents",
-    "Agent", "Solicitors", "Accountants", "Property", "Homes", "Services",
-    "Company", "Ltd", "Limited", "Group", "UK", "AI", "Overview",
+# Engine key -> visibility_checks column.
+ENGINE_COLUMN = {
+    "ChatGPT": "chatgpt_score",
+    "Claude": "claude_score",
+    "Gemini": "gemini_score",
+    "Perplexity": "perplexity_score",
+    "ai_overview": "ai_overview_score",
 }
 
 
-def _extract_candidate_names(text: str) -> list[str]:
-    """Pull capitalised multi-word phrases that look like business names."""
-    if not text or text.startswith("NO_AI_OVERVIEW"):
-        candidates = []
-    else:
-        candidates = re.findall(r"\b([A-Z][A-Za-z&']+(?:\s+[A-Z][A-Za-z&']+){0,2})\b", text)
-    out: list[str] = []
-    for c in candidates:
-        words = [w for w in c.split() if w not in _STOP]
-        if not words:
-            continue
-        cleaned = " ".join(words)
-        if len(cleaned) > 2 and cleaned not in out:
-            out.append(cleaned)
-    return out
+class VisibilityProbeError(RuntimeError):
+    """Raised when no engine returned a live answer (API failure, not a result)."""
 
 
-def _known_competitors(conn, company) -> dict[str, str]:
-    """{normalised_name: display_name} of other DB companies in same town+sector."""
+def _known_competitor_names(conn, company) -> list[str]:
     others = db.companies_in_town_sector(
         conn, company["town"] or "", company["sector"] or "", exclude_id=company["id"]
     )
-    return {normalise_name(o["name"]): o["name"] for o in others}
+    return [o["name"] for o in others]
 
 
-def score_company(conn, company, queries=None, engines=None) -> dict:
-    """Run/read probes, score, write a mini visibility_checks row. Returns it."""
+def score_company(conn, company, queries=None, engines=None, check_type="mini") -> dict:
+    """Run/read probes, score with the 70/30 rubric, write a check row."""
     queries = queries or prompts.build_queries(company)
-    engines = engines or ["chatgpt", "perplexity", "ai_overview"]
+    engines = engines or config.CHECK_ENGINES
     name = company["name"]
     domain = domain_of(company["website"])
-    known = _known_competitors(conn, company)
+    universe = _known_competitor_names(conn, company)
 
-    per_engine_hits: dict[str, list[bool]] = {e: [] for e in engines}
-    competitors_found: dict[str, int] = {}  # display name -> count
-    unknown_found: dict[str, int] = {}
+    per_engine: dict[str, dict] = {e: {"answered": 0, "mentioned": 0} for e in engines}
+    competitor_counts: dict[str, dict] = {}
+    total_cost = 0.0
 
-    for query in queries:
-        for engine in engines:
-            text = probes.PROBES[engine](conn, query)
-            per_engine_hits[engine].append(_mention(name, domain, text))
-            # Competitors: known DB names first, then unknown candidates.
-            norm_text = normalise_name(text)
-            for norm, display in known.items():
-                if norm and norm in norm_text:
-                    competitors_found[display] = competitors_found.get(display, 0) + 1
-            for cand in _extract_candidate_names(text):
-                nc = normalise_name(cand)
-                if nc == normalise_name(name):
-                    continue
-                if nc in known:
-                    continue
-                unknown_found[cand] = unknown_found.get(cand, 0) + 1
+    for engine in engines:
+        for query in queries:
+            res = probes.run_probe(conn, engine, query)
+            if not res["answered"]:
+                continue
+            per_engine[engine]["answered"] += 1
+            total_cost += res.get("cost_usd", 0.0)
+            det = ai_query.detect_brand_mention(res["text"], name, domain)
+            if det["mentioned"]:
+                per_engine[engine]["mentioned"] += 1
+            # General competitor extraction (list/bold, multi-word firms).
+            for comp in ai_query.extract_competitors(res["text"], name):
+                key = ai_query.normalize_brand_name(comp)
+                slot = competitor_counts.setdefault(key, {"name": comp, "mentions": 0})
+                slot["mentions"] += 1
+            # Plus a direct scan for known DB-cohort firms — catches verified
+            # local rivals the generic extractor drops (e.g. single-word brands).
+            for uname in universe:
+                if ai_query.detect_brand_mention(res["text"], uname, "")["mentioned"]:
+                    key = ai_query.normalize_brand_name(uname)
+                    slot = competitor_counts.setdefault(key, {"name": uname, "mentions": 0})
+                    slot["mentions"] += 1
 
-    # Per-engine mention rate 0-100.
-    engine_scores: dict[str, float] = {}
-    for engine, hits in per_engine_hits.items():
-        engine_scores[engine] = round(100 * sum(hits) / len(hits), 1) if hits else 0.0
+    platforms_tested = sum(1 for e in engines if per_engine[e]["answered"] > 0)
+    platforms_mentioned = sum(1 for e in engines if per_engine[e]["mentioned"] > 0)
+    prompts_total = sum(per_engine[e]["answered"] for e in engines)
+    prompts_mentioned = sum(per_engine[e]["mentioned"] for e in engines)
 
-    composite = round(
-        sum(engine_scores.get(e, 0.0) * w for e, w in ENGINE_WEIGHTS.items()), 1
-    )
+    if platforms_tested == 0:
+        raise VisibilityProbeError(
+            "No live AI responses captured (every engine errored — check "
+            "OPENROUTER_API_KEY / credits / network). No check written; the check "
+            "reports only genuine AI answers, it does not fabricate a result."
+        )
 
-    # Rank competitors by how often they appeared. Known DB competitors are the
-    # most credible "who is winning" names.
-    ranked_known = sorted(competitors_found.items(), key=lambda kv: -kv[1])
-    ranked_unknown = sorted(unknown_found.items(), key=lambda kv: -kv[1])
-    top_competitors = [n for n, _ in ranked_known[:3]] or [n for n, _ in ranked_unknown[:3]]
-    competitor_named = ", ".join(top_competitors[:2]) if top_competitors else None
+    composite = 0.0
+    composite += (platforms_mentioned / platforms_tested) * 70
+    if prompts_total:
+        composite += (prompts_mentioned / prompts_total) * 30
+    composite = round(composite, 1)
 
-    headline = _headline_finding(company, queries, engine_scores, top_competitors)
+    # Per-engine mention rate 0-100 for the report table.
+    engine_scores = {
+        e: (round(100 * per_engine[e]["mentioned"] / per_engine[e]["answered"], 1)
+            if per_engine[e]["answered"] else None)
+        for e in engines
+    }
 
-    check_id = db.insert_visibility_check(
-        conn, company["id"],
-        run_date=date.today().isoformat(),
-        check_type="mini",
-        chatgpt_score=engine_scores.get("chatgpt"),
-        perplexity_score=engine_scores.get("perplexity"),
-        ai_overview_score=engine_scores.get("ai_overview"),
-        composite_score=composite,
-        headline_finding=headline,
-        competitor_named=competitor_named,
-    )
-    # Advance new -> checked.
+    # Rank competitors by mentions, then select. The strict geo-slab gate rejects
+    # risky single-word names, but a name we have independently verified as a real
+    # firm in our own town+sector cohort is safe to admit even if single-word
+    # (e.g. estate-agent brands like Connells). Cohort names lead (universe boost).
+    ranked = sorted(competitor_counts.values(), key=lambda c: -c["mentions"])
+    raw_names = [c["name"] for c in ranked]
+    town = company["town"] or ""
+    strict = competitor_gate.valid_competitors(raw_names, brand=name)
+    trusted = [
+        n for n in raw_names
+        if competitor_gate.is_in_universe(n, universe)
+        and not competitor_gate.is_self_mention(n, name)
+    ]
+    top: list[str] = []
+    for n in trusted + strict:
+        cleaned = competitor_gate.clean_company_name(n, town)
+        if cleaned and cleaned not in top:
+            top.append(cleaned)
+    competitor_named = ", ".join(top[:2]) if top else None
+
+    headline = _headline_finding(company, queries, platforms_mentioned, top)
+
+    row = {
+        "run_date": date.today().isoformat(),
+        "check_type": check_type,
+        "composite_score": composite,
+        "platforms_tested": platforms_tested,
+        "platforms_mentioned": platforms_mentioned,
+        "cost_usd": round(total_cost, 5),
+        "headline_finding": headline,
+        "competitor_named": competitor_named,
+    }
+    for e, col in ENGINE_COLUMN.items():
+        if e in engine_scores:
+            row[col] = engine_scores[e]
+    check_id = db.insert_visibility_check(conn, company["id"], **row)
+
     if company["status"] == "new":
         try:
             db.advance_status(conn, company["id"], "checked", event="mini_check")
         except db.InvalidTransition:
             pass
+
+    # Refresh pitchability now the visibility gap is known.
+    from . import pitchability
+    pitchability.score_company(conn, db.get_company(conn, company["id"]))
+
     return {
         "check_id": check_id,
         "composite": composite,
         "engine_scores": engine_scores,
+        "platforms_tested": platforms_tested,
+        "platforms_mentioned": platforms_mentioned,
         "headline": headline,
         "competitor_named": competitor_named,
-        "competitors": top_competitors,
+        "competitors": top[:5],
+        "cost_usd": round(total_cost, 5),
     }
-
-
-def _headline_finding(company, queries, engine_scores, competitors) -> str:
-    """One plain sentence for the opener. Deterministic template, no hype."""
-    town = company["town"] or "their area"
-    sector = (company["sector"] or "business").rstrip("s")
-    appeared = engine_scores.get("chatgpt", 0) > 0
-    comp_str = _join_names(competitors[:2]) if competitors else "other firms"
-    n = len(queries)
-    if not appeared and engine_scores.get("chatgpt", 100) == 0:
-        return (
-            f"Asked ChatGPT for the best {sector} in {town} {n} different ways. "
-            f"{comp_str} came up. {company['name']} did not appear once."
-        )
-    if engine_scores.get("chatgpt", 0) < 50:
-        return (
-            f"Asked ChatGPT for the best {sector} in {town} {n} different ways. "
-            f"{company['name']} showed up in some answers, {comp_str} in more."
-        )
-    return (
-        f"Checked how {company['name']} shows up when people ask AI for a "
-        f"{sector} in {town}. Decent on ChatGPT, thin on Perplexity and Google's "
-        f"AI results."
-    )
 
 
 def _join_names(names: list[str]) -> str:
@@ -174,3 +167,28 @@ def _join_names(names: list[str]) -> str:
     if len(names) == 1:
         return names[0]
     return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _headline_finding(company, queries, platforms_mentioned, competitors) -> str:
+    """One plain sentence for the opener. Deterministic, no hype, no em dashes."""
+    town = company["town"] or "their area"
+    phrase = competitor_gate.noun_phrase(company["sector"] or company["name"])
+    comp_str = _join_names(competitors[:2]) if competitors else "other firms"
+    n = len(queries)
+    if platforms_mentioned == 0:
+        return (
+            f"Asked ChatGPT, Claude, Gemini and Perplexity for {phrase} in {town} "
+            f"{n} different ways. {comp_str} came up. {company['name']} did not "
+            f"appear once."
+        )
+    if platforms_mentioned <= 2:
+        return (
+            f"Checked how {company['name']} shows up when people ask AI for {phrase} "
+            f"in {town}. You appeared on {platforms_mentioned} of the engines, "
+            f"{comp_str} on more."
+        )
+    return (
+        f"Checked how {company['name']} shows up across ChatGPT, Claude, Gemini "
+        f"and Perplexity for {phrase} in {town}. Present on most, but there are "
+        f"gaps worth closing."
+    )
