@@ -1,0 +1,34 @@
+# National chains to skip during Places ingestion (case-insensitive substring
+# match on company name). One per line. Blank lines and # comments ignored.
+# Estate agents
+purplebricks
+connells
+hamptons
+foxtons
+savills
+knight frank
+william h brown
+your move
+haart
+countrywide
+winkworth
+leaders
+romans
+belvoir
+martin & co
+chancellors
+# Solicitors / accountants national brands
+irwin mitchell
+slater and gordon
+co-op legal
+# Home services franchises
+pimlico plumbers
+dyno-rod
+british gas
+homeserve
+# Generic marketplaces (not the SME themselves)
+rightmove
+zoopla
+onthemarket
+checkatrade
+yell

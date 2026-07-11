@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  {{ font_faces }}
+  {{ base_css }}
+  @page { size: A4; margin: 18mm 16mm; }
+  .page-break { page-break-before: always; }
+  .cover { text-align: left; padding-top: 30mm; }
+  .kicker { font-family: '{{ tokens.font_mono }}'; text-transform: uppercase;
+            letter-spacing: 0.15em; font-size: 9pt; color: {{ tokens.coral }}; }
+  h1.title { font-size: 34pt; margin: 8px 0 4px; }
+  .dial { display: inline-block; padding: 22px 30px; margin: 24px 0;
+          background: {{ tokens.coral }}; color: #fff; box-shadow: {{ tokens.shadow }};
+          border: {{ tokens.border }}; }
+  .dial .num { font-family: '{{ tokens.font_mono }}'; font-size: 46pt; font-weight: 700; line-height: 1; }
+  .dial .lab { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.1em; }
+  h2 { font-size: 18pt; margin: 26px 0 10px; border-bottom: {{ tokens.border }}; padding-bottom: 6px; }
+  .yes { color: {{ tokens.coral }}; font-weight: 700; }
+  .no { color: {{ tokens.charcoal }}; opacity: 0.55; }
+  ul.reasons { list-style: none; }
+  ul.reasons li { border: {{ tokens.border }}; box-shadow: {{ tokens.shadow }};
+                  padding: 12px 14px; margin: 10px 0; background: {{ tokens.cream }}; }
+  ul.reasons li b { font-family: '{{ tokens.font_display }}'; }
+  .footer { margin-top: 30px; padding-top: 12px; border-top: {{ tokens.border }};
+            font-size: 9pt; font-family: '{{ tokens.font_mono }}'; }
+  .lead { font-size: 12pt; }
+  .audit-card { background: {{ tokens.sage }}; border: {{ tokens.border }};
+                box-shadow: {{ tokens.shadow }}; padding: 20px; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="kicker">Antek Automation · AI Visibility Check</div>
+  <h1 class="title">{{ company.name }}</h1>
+  <div>{{ company.town }}{% if company.sector %} · {{ company.sector }}{% endif %}</div>
+  <div class="dial">
+    <div class="num">{{ composite }}</div>
+    <div class="lab">AI visibility / 100</div>
+  </div>
+  <p class="lead">{{ headline }}</p>
+  <div class="footer">Prepared {{ run_date }} for {{ addressee }}</div>
+</section>
+
+<section class="page-break">
+  <h2>What we checked</h2>
+  <p>We asked {{ engines|length }} AI engines the questions a real customer would
+     ask when looking for a {{ sector_word }} in {{ company.town }}. The same
+     {{ queries|length }} questions, put to each engine.</p>
+  <table>
+    <tr><th>#</th><th>Buyer question</th></tr>
+    {% for q in queries %}<tr><td class="mono">{{ loop.index }}</td><td>{{ q }}</td></tr>{% endfor %}
+  </table>
+  <p style="margin-top:12px;">Engines: {{ engines|join(', ') }}.</p>
+
+  <h2>Where you appeared, and where you did not</h2>
+  <table>
+    <tr><th>Engine</th><th>You appeared</th><th>Score</th></tr>
+    {% for row in engine_table %}
+    <tr>
+      <td>{{ row.engine }}</td>
+      <td>{% if row.score > 0 %}<span class="yes">Yes, in some answers</span>{% else %}<span class="no">Not once</span>{% endif %}</td>
+      <td class="mono">{{ row.score }}/100</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section class="page-break">
+  <h2>Who is winning instead</h2>
+  {% if competitors %}
+  <p>These businesses came up when yours did not:</p>
+  <table>
+    <tr><th>Business</th></tr>
+    {% for c in competitors %}<tr><td>{{ c }}</td></tr>{% endfor %}
+  </table>
+  {% else %}
+  <p>No single competitor dominated, which means this space is open. Whoever
+     gets their AI visibility right first will own these answers.</p>
+  {% endif %}
+
+  <h2>Three plain reasons this happens</h2>
+  <ul class="reasons">
+    <li><b>Thin entity data.</b> The AI engines do not have a clear, consistent
+        picture of who you are, where you work and what you do. Scattered or
+        missing details mean they leave you out.</li>
+    <li><b>No structured data.</b> Your site does not spell out your services,
+        area and reviews in the machine-readable format these engines read
+        first, so they lean on sources that do.</li>
+    <li><b>Weak citations.</b> The engines cite the businesses that are
+        mentioned and linked across trusted local sources. If those mentions are
+        thin, you are invisible to the answer.</li>
+  </ul>
+</section>
+
+<section class="page-break">
+  <h2>What a full GEO audit covers</h2>
+  <div class="audit-card">
+    <p class="lead">This check is the headline. The full audit is the plan.</p>
+    <p style="margin-top:10px;">A full GEO (Generative Engine Optimisation) audit
+       maps every query that matters in your town, scores you against every
+       competitor across ChatGPT, Perplexity and Google's AI results, and gives
+       you a prioritised list of the exact fixes: entity data, structured data
+       and the citations that move you into the answer.</p>
+    <p style="margin-top:10px;">Roughly 85% of UK SMEs have zero measurable AI
+       visibility. The ones that fix it now get quoted by name for years.</p>
+    <p style="margin-top:10px;"><b>Proof:</b> Antek holds 100% Share of AI Voice
+       for "ai voice agents andover", measured with Local Falcon.</p>
+  </div>
+</section>
+
+<div class="footer">
+  {{ tokens.company_name }} · {{ tokens.address_lines|join(', ') }}<br>
+  {{ tokens.phone }} · {{ tokens.website }}
+</div>
+
+</body>
+</html>

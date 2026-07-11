@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  {{ font_faces }}
+  {{ base_css }}
+  @page { size: A4; margin: 22mm 20mm; }
+  .sender { text-align: right; font-family: '{{ tokens.font_mono }}'; font-size: 9pt; line-height: 1.4; }
+  .addressee { margin-top: 18px; font-size: 11pt; line-height: 1.4; }
+  .date { margin-top: 14px; font-family: '{{ tokens.font_mono }}'; font-size: 9pt; }
+  .body { margin-top: 20px; font-size: 11pt; line-height: 1.55; }
+  .body p { margin-bottom: 11px; }
+  .finding { border-left: 4px solid {{ tokens.coral }}; padding: 6px 0 6px 12px;
+             background: {{ tokens.cream }}; font-weight: 500; }
+  .claim { margin-top: 18px; border: {{ tokens.border }}; box-shadow: {{ tokens.shadow }};
+           padding: 14px; display: flex; align-items: center; gap: 16px; }
+  .claim .qr img { width: 92px; height: 92px; }
+  .claim .url { font-family: '{{ tokens.font_mono }}'; font-size: 12pt; font-weight: 700; }
+  .sign { margin-top: 22px; }
+  .sign .name { font-family: '{{ tokens.font_display }}'; font-weight: 800; font-size: 13pt; }
+  .ps { margin-top: 16px; font-style: italic; }
+  .foot { margin-top: 22px; padding-top: 8px; border-top: {{ tokens.border }};
+          font-family: '{{ tokens.font_mono }}'; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+  <div class="sender">
+    {{ tokens.company_name }}<br>
+    {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
+    {{ tokens.phone }}
+  </div>
+
+  <div class="addressee">
+    {{ addressee }}<br>
+    {{ company.name }}<br>
+    {% if delivery_address %}{{ delivery_address }}{% endif %}
+  </div>
+
+  <div class="date">{{ date_str }}</div>
+
+  <div class="body">
+    <p>Dear {{ salutation }},</p>
+
+    <p class="finding">{{ headline }}</p>
+
+    <p>I run Antek Automation in Andover. I have been checking how {{ company.town }}
+       {{ sector_word }} show up when people ask AI tools like ChatGPT for a
+       recommendation. That is how a lot of your customers now start looking.</p>
+
+    <p>Roughly 85% of UK SMEs have zero measurable AI visibility. Most have no
+       idea, because it does not show up in the places they usually check.</p>
+
+    <p>I put together a short AI Visibility Check report for {{ company.name }}. It
+       shows exactly where you appear across ChatGPT, Perplexity and Google's AI
+       results, and where a competitor appears instead. It is free and it is
+       already prepared. You just need to claim it.</p>
+
+    <div class="claim">
+      {% if qr_data_uri %}<div class="qr"><img src="{{ qr_data_uri }}" alt="Claim QR code"></div>{% endif %}
+      <div>
+        <div>Scan the code, or go to:</div>
+        <div class="url">{{ claim_url }}</div>
+      </div>
+    </div>
+
+    <div class="sign">
+      <p>Best regards,</p>
+      <div class="name">{{ tokens.operator }}</div>
+      <div>{{ tokens.company_name }}</div>
+    </div>
+
+    <p class="ps">PS. No catch. The report exists either way. I'd rather you saw it.</p>
+  </div>
+
+  <div class="foot">
+    {{ tokens.company_name }} · {{ tokens.address_lines|join(', ') }} · {{ tokens.phone }} · {{ tokens.website }}
+  </div>
+</body>
+</html>

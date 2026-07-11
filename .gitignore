@@ -1,0 +1,27 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Data and generated output (local only)
+data/
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+build/
+dist/
+
+# uv
+uv.lock
+
+# Reference clones
+geo-slab/
+
+# OS
+.DS_Store
+Thumbs.db
