@@ -1,0 +1,166 @@
+{
+  "name": "WF9 - AI Visibility Check",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "visibility-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf9-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "visibility-check"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"ok\" } }}",
+        "options": {}
+      },
+      "id": "wf9-respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Honeypot + consent gate, then normalise. Return [] to stop silently.\nconst raw = $input.first().json;\nconst b = raw.body || raw;\nif (b.company_size && String(b.company_size).trim() !== '') return [];\nif (b.consent !== true && b.consent !== 'true') return [];\nconst email = String(b.email || '').trim().toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return [];\nlet website = String(b.website_url || '').trim();\nif (website && !/^https?:\\/\\//i.test(website)) website = 'https://' + website;\nif (!website) return [];\nreturn [{ json: {\n  name: String(b.name || '').trim(),\n  email,\n  phone: String(b.phone || '').trim(),\n  business_name: String(b.business_name || '').trim(),\n  website_url: website,\n  location: String(b.location || '').trim()\n} }];"
+      },
+      "id": "wf9-validate",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCAN_URL }}/scan",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "X-Scan-Token", "value": "={{ $env.SCAN_TOKEN }}" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name, website_url: $json.website_url, location: $json.location, email: $json.email, name: $json.name, phone: $json.phone }) }}",
+        "options": { "timeout": 180000 }
+      },
+      "id": "wf9-scan",
+      "name": "Scan (geo-scan)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "done",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf9-if",
+      "name": "Scan OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "api-key", "value": "={{ $env.BREVO_API_KEY }}" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $('Validate').item.json.email, updateEnabled: true, attributes: { FIRSTNAME: $('Validate').item.json.name, PHONE: $('Validate').item.json.phone, BUSINESS_NAME: $json.business_name, DOMAIN: $json.domain, TOWN: $json.town, TRADE: $json.trade, VISIBILITY_SCORE: $json.visibility_score, MENTION_RATE: $json.mention_rate, TOP_COMPETITOR: $json.top_competitor, SCAN_DATE: $now.format('yyyy-MM-dd') }, listIds: [ Number($env.BREVO_LIST_ID) ] }) }}",
+        "options": {}
+      },
+      "id": "wf9-brevo-upsert",
+      "name": "Brevo Upsert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "api-key", "value": "={{ $env.BREVO_API_KEY }}" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.BREVO_FROM_EMAIL, name: $env.BREVO_FROM_NAME }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility result: ' + $json.business_name, htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your AI Visibility Check is attached. You scored <strong>' + $json.visibility_score + '/100</strong>. ' + ($json.headline || '') + '</p><p>Want the full picture? The GEO Audit is £247 with a prioritised fix list. Reply to this email or book at antekautomation.com/services/geo-audit.</p><p>Antek Automation · Chantry House, 38 Chantry Way, Andover SP10 1LZ · 0333 038 9960</p>', attachment: [{ content: $json.pdf_b64, name: 'ai-visibility-check.pdf' }] }) }}",
+        "options": {}
+      },
+      "id": "wf9-brevo-email",
+      "name": "Brevo Email (PDF)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: 'New visibility check: ' + $json.business_name + ' (' + $json.town + ') scored ' + $json.visibility_score + '/100. Mentioned on ' + $json.platforms_mentioned + '/' + $json.platforms_tested + ' engines. Top competitor: ' + ($json.top_competitor || 'none') + '. Email: ' + $('Validate').item.json.email }) }}",
+        "options": {}
+      },
+      "id": "wf9-telegram",
+      "name": "Telegram Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "api-key", "value": "={{ $env.BREVO_API_KEY }}" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.BREVO_FROM_EMAIL, name: $env.BREVO_FROM_NAME }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility check is on its way', htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your check is taking a little longer than expected. We will send your report shortly.</p><p>Antek Automation · 0333 038 9960</p>' }) }}",
+        "options": {}
+      },
+      "id": "wf9-fail-email",
+      "name": "Brevo Delay Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Respond OK": { "main": [[{ "node": "Validate", "type": "main", "index": 0 }]] },
+    "Validate": { "main": [[{ "node": "Scan (geo-scan)", "type": "main", "index": 0 }]] },
+    "Scan (geo-scan)": { "main": [[{ "node": "Scan OK?", "type": "main", "index": 0 }]] },
+    "Scan OK?": { "main": [
+      [{ "node": "Brevo Upsert", "type": "main", "index": 0 }],
+      [{ "node": "Brevo Delay Email", "type": "main", "index": 0 }]
+    ] },
+    "Brevo Upsert": { "main": [[{ "node": "Brevo Email (PDF)", "type": "main", "index": 0 }]] },
+    "Brevo Email (PDF)": { "main": [[{ "node": "Telegram Notify", "type": "main", "index": 0 }]] }
+  }
+}
