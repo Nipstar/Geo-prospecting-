@@ -47,9 +47,12 @@ Cloudflare-1010-blocks non-browsers), so create it in the **Coolify UI**:
    ```
    POST https://geo-scan.cerberos.app/scan
    Header: X-Scan-Token: <SCAN_TOKEN>
-   Body:   {"business_name":"Test Co","website_url":"example.com","location":"Basingstoke","email":"you@x.com"}
+   Body:   {"business_name":"Test Co","website_url":"example.com","location":"Basingstoke","trade":"lawyer","email":"you@x.com"}
    ```
    Expect JSON with `status:"done"`, `visibility_score`, `pdf_b64`.
+   Form fields sent by the page: `name, email, phone, business_name, website_url,
+   location, trade, consent, company_size` (honeypot). `trade` (e.g. lawyer,
+   accountant) drives the probe prompts; if omitted, `/scan` classifies from the site.
 
 ## 3. WF9 in n8n
 
