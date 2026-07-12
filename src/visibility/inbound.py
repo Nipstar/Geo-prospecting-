@@ -13,15 +13,43 @@ PDF is returned instead of burning fresh probe spend.
 from __future__ import annotations
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .. import db
+from .. import config, db
 from ..ingest import enrich
 from ..ingest.util import domain_of
-from . import report, score
+from . import probes, prompts, report, score
 
 DEDUP_DAYS = 7
+PREWARM_WORKERS = 6
+
+
+def _prewarm_probes(company) -> None:
+    """Fetch all (engine, query) probes concurrently so the sequential
+    score_company loop reads them from probe_cache instead of making 25 slow
+    network calls in series. Keeps a cold inbound scan under Cloudflare's 120s
+    proxy timeout. Each thread uses its own SQLite connection (writes serialise
+    on the file lock); a failed prefetch just falls back to a live call in
+    score_company, so this only ever speeds things up."""
+    queries = prompts.build_queries(company)
+    engines = config.CHECK_ENGINES
+    jobs = [(e, q) for e in engines for q in queries]
+
+    def _one(job) -> None:
+        engine, query = job
+        c = db.get_connection()
+        try:
+            c.execute("PRAGMA busy_timeout=8000")
+            probes.run_probe(c, engine, query)
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            c.close()
+
+    with ThreadPoolExecutor(max_workers=PREWARM_WORKERS) as ex:
+        list(ex.map(_one, jobs))
 
 
 def _within_days(run_date: str | None, days: int) -> bool:
@@ -121,7 +149,8 @@ def run_inbound(company_name: str, website: str, location: str = "",
             pass
 
         company = db.get_company(conn, company_id)
-        result = report.build_full_report(conn, company)  # probes + score + PDF
+        _prewarm_probes(company)  # parallel prefetch → keeps the scan under ~30s
+        result = report.build_full_report(conn, company)  # probes (cached) + score + PDF
         return _result_payload(
             db.get_company(conn, company_id), result,
             cached=False, pdf_b64=_pdf_b64(result["report_path"]),
@@ -174,8 +203,10 @@ def _demo() -> None:
         return {"sector": "plumbing", "primary_service": ""}
 
     orig_report, orig_enrich = report_mod.build_full_report, enrich.enrich_company
+    orig_prewarm = globals()["_prewarm_probes"]
     report_mod.build_full_report = fake_report
     enrich.enrich_company = fake_enrich
+    globals()["_prewarm_probes"] = lambda company: None  # no network in the self-check
     try:
         r1 = run_inbound("Dave Plumbing", "daveplumbing.co.uk", "Basingstoke")
         assert r1["status"] == "done" and r1["cached"] is False, r1
@@ -191,6 +222,7 @@ def _demo() -> None:
     finally:
         report_mod.build_full_report = orig_report
         enrich.enrich_company = orig_enrich
+        globals()["_prewarm_probes"] = orig_prewarm
     print("inbound self-check passed")
 
 
