@@ -17,7 +17,7 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "pipeline.db"
-OUTPUT_DIR = ROOT / "output"
+OUTPUT_DIR = DATA_DIR / "output"
 REPORTS_DIR = OUTPUT_DIR / "reports"
 QUEUE_DIR = OUTPUT_DIR / "queue"
 LETTERS_DIR = OUTPUT_DIR / "letters"
