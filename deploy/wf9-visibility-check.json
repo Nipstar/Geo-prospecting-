@@ -30,7 +30,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Honeypot + consent gate, then normalise. Return [] to stop silently.\nconst raw = $input.first().json;\nconst b = raw.body || raw;\nif (b.company_size && String(b.company_size).trim() !== '') return [];\nif (b.consent !== true && b.consent !== 'true') return [];\nconst email = String(b.email || '').trim().toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return [];\nlet website = String(b.website_url || '').trim();\nif (website && !/^https?:\\/\\//i.test(website)) website = 'https://' + website;\nif (!website) return [];\nreturn [{ json: {\n  name: String(b.name || '').trim(),\n  email,\n  phone: String(b.phone || '').trim(),\n  business_name: String(b.business_name || '').trim(),\n  website_url: website,\n  location: String(b.location || '').trim()\n} }];"
+        "jsCode": "// Honeypot + consent gate, then normalise. Return [] to stop silently.\nconst raw = $input.first().json;\nconst b = raw.body || raw;\nif (b.company_size && String(b.company_size).trim() !== '') return [];\nif (b.consent !== true && b.consent !== 'true') return [];\nconst email = String(b.email || '').trim().toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return [];\nlet website = String(b.website_url || '').trim();\nif (website && !/^https?:\\/\\//i.test(website)) website = 'https://' + website;\nif (!website) return [];\nreturn [{ json: {\n  name: String(b.name || '').trim(),\n  email,\n  phone: String(b.phone || '').trim(),\n  business_name: String(b.business_name || '').trim(),\n  website_url: website,\n  location: String(b.location || '').trim(),\n  trade: String(b.trade || '').trim()\n} }];"
       },
       "id": "wf9-validate",
       "name": "Validate",
@@ -48,7 +48,7 @@
         ] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name, website_url: $json.website_url, location: $json.location, email: $json.email, name: $json.name, phone: $json.phone }) }}",
+        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name, website_url: $json.website_url, location: $json.location, trade: $json.trade, email: $json.email, name: $json.name, phone: $json.phone }) }}",
         "options": { "timeout": 180000 }
       },
       "id": "wf9-scan",

@@ -27,6 +27,7 @@ class ScanRequest(BaseModel):
     website_url: str | None = None
     domain: str | None = None
     location: str | None = None
+    trade: str | None = None
     email: str | None = None
     name: str | None = None
     phone: str | None = None
@@ -51,6 +52,7 @@ def scan(req: ScanRequest, x_scan_token: str = Header(default="")) -> dict:
         return inbound.run_inbound(
             company_name=company_name, website=website, location=req.location or "",
             email=req.email or "", name=req.name or "", phone=req.phone or "",
+            trade=req.trade or "",
         )
     except score.VisibilityProbeError as exc:
         # Every engine errored — not a genuine 0/100. Tell n8n so it emails the

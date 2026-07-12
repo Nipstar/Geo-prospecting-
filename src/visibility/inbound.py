@@ -98,11 +98,13 @@ def _result_payload(company, result: dict, *, cached: bool, pdf_b64: str) -> dic
 
 
 def run_inbound(company_name: str, website: str, location: str = "",
-                email: str = "", name: str = "", phone: str = "") -> dict:
+                email: str = "", name: str = "", phone: str = "", trade: str = "") -> dict:
     """Classify, scan, score and render a PDF for an inbound lead. Returns a flat
     dict for n8n (WF9) to hand to Brevo. Raises score.VisibilityProbeError if
-    every engine errors (never fabricates a 0/100)."""
+    every engine errors (never fabricates a 0/100). If `trade` is given (from the
+    form) it drives the probe prompts and classification is skipped."""
     company_name = (company_name or "").strip() or (domain_of(website) or "This business")
+    trade = (trade or "").strip()
     conn = db.get_connection()
     try:
         db.run_migrations(conn)
@@ -128,25 +130,27 @@ def run_inbound(company_name: str, website: str, location: str = "",
                     cached=True, pdf_b64=_pdf_b64(chk["report_path"]),
                 )
             company_id = existing["id"]
-            db.update_company(
-                conn, company_id,
-                phone=phone or existing["phone"],
-                town=location or existing["town"],
-                source="landing",
-            )
+            fields = {"phone": phone or existing["phone"],
+                      "town": location or existing["town"], "source": "landing"}
+            if trade:  # form-provided trade wins over any prior classification
+                fields["sector"] = trade
+                fields["primary_service"] = trade
+            db.update_company(conn, company_id, **fields)
         else:
             company_id = db.insert_company(
                 conn, name=company_name, website=website or None,
                 town=location or None, phone=phone or None,
+                sector=trade or None, primary_service=trade or None,
                 source="landing", status="new",
             )
 
-        # Classify trade from the homepage (sets sector + primary_service). If the
-        # site is unreachable the check still runs on 'local business' + town.
-        try:
-            enrich.enrich_company(conn, db.get_company(conn, company_id))
-        except Exception:  # noqa: BLE001
-            pass
+        # Only classify the trade from the homepage when the form did not give one.
+        # If the site is unreachable the check still runs on the town + trade.
+        if not trade:
+            try:
+                enrich.enrich_company(conn, db.get_company(conn, company_id))
+            except Exception:  # noqa: BLE001
+                pass
 
         company = db.get_company(conn, company_id)
         _prewarm_probes(company)  # parallel prefetch → keeps the scan under ~30s
