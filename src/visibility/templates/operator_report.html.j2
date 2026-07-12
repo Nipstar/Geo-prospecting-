@@ -88,7 +88,7 @@
 {% for eng in detail %}
 <section class="page-break">
   <h2>{{ eng.engine }} — full answers</h2>
-  {% for item in eng.items %}
+  {% for item in eng['answers'] %}
   <div class="qhead"><span class="q">Q{{ item.n }}: {{ item.query }}</span>
     <span class="badge {{ 'hit' if item.mentioned else 'miss' }}">{{ 'NAMED YOU' if item.mentioned else 'not named' }}</span></div>
   <div class="answer">{{ item.text_html|safe }}</div>

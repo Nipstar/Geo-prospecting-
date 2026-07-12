@@ -72,7 +72,7 @@ def build_operator_report(conn, company, queries, *, cost=0.0, cached=False, com
             grid[e][q] = hit
             items.append({"n": i, "query": q, "mentioned": bool(hit),
                           "text_html": _highlight(txt, name, domain) if txt else "(no answer returned)"})
-        detail.append({"engine": e, "items": items})
+        detail.append({"engine": e, "answers": items})
 
     platforms_tested = sum(1 for e in engines if any(grid[e][q] is not None for q in queries))
     platforms_mentioned = sum(1 for e in engines if any(grid[e][q] for q in queries))
