@@ -13,9 +13,12 @@ PDF is returned instead of burning fresh probe spend.
 from __future__ import annotations
 
 import base64
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+import requests
 
 from .. import config, db
 from ..ingest import enrich
@@ -24,6 +27,37 @@ from . import probes, prompts, report, score
 
 DEDUP_DAYS = 7
 PREWARM_WORKERS = 6
+
+# Rough UK postcode shape (full or partial-with-inward). Used only to decide
+# whether a location field needs postcode->town resolution, not for validation.
+_UK_POSTCODE = re.compile(r"^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$")
+
+
+def _normalize_town(location: str) -> str:
+    """Force a real town name for the probe prompts.
+
+    Users type a postcode in the location field, which makes prompts read
+    'best plumber in SP10 2PX' — geographic nonsense that scores a false 0.
+    If the input looks like a UK postcode, resolve it to its town via
+    postcodes.io (free, no key); otherwise return it unchanged. `parish` is the
+    town for a real place (Andover); `admin_district` (the council, e.g. Test
+    Valley) is the fallback for unparished cities.
+    # ponytail: postcodes.io only; if it's down we pass the postcode through
+    # rather than block the scan — worst case is the same as today.
+    """
+    loc = (location or "").strip()
+    if not loc or not _UK_POSTCODE.match(loc):
+        return loc
+    try:
+        r = requests.get(f"https://api.postcodes.io/postcodes/{loc}", timeout=8)
+        if r.ok:
+            res = r.json().get("result") or {}
+            town = (res.get("parish") or res.get("admin_district") or "").strip()
+            if town:
+                return town
+    except requests.RequestException:
+        pass
+    return loc
 
 
 def _prewarm_probes(company) -> None:
@@ -105,6 +139,7 @@ def run_inbound(company_name: str, website: str, location: str = "",
     form) it drives the probe prompts and classification is skipped."""
     company_name = (company_name or "").strip() or (domain_of(website) or "This business")
     trade = (trade or "").strip()
+    location = _normalize_town(location)  # postcode -> town so prompts aren't geographic nonsense
     conn = db.get_connection()
     try:
         db.run_migrations(conn)
@@ -166,6 +201,11 @@ def run_inbound(company_name: str, website: str, location: str = "",
 # ── Self-check (offline — monkeypatches network/render) ────────────────────
 def _demo() -> None:
     import tempfile
+
+    # location normalizer (offline: passthrough + postcode-shape detection only)
+    assert _normalize_town("Andover") == "Andover"
+    assert _normalize_town("  ") == ""
+    assert _UK_POSTCODE.match("SP10 2PX") and not _UK_POSTCODE.match("Andover")
 
     from . import report as report_mod
 
