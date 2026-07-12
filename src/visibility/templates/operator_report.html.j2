@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  {{ font_faces }}
+  {{ base_css }}
+  @page { size: A4; margin: 16mm 14mm; }
+  .page-break { page-break-before: always; }
+  .kicker { font-family: '{{ tokens.font_mono }}'; text-transform: uppercase;
+            letter-spacing: 0.15em; font-size: 9pt; color: {{ tokens.coral }}; }
+  h1.title { font-size: 30pt; margin: 8px 0 4px; }
+  h2 { font-size: 16pt; margin: 22px 0 8px; border-bottom: {{ tokens.border }}; padding-bottom: 5px; }
+  h3 { font-size: 12pt; margin: 16px 0 4px; font-family: '{{ tokens.font_mono }}'; }
+  .dial { display: inline-block; padding: 16px 24px; margin: 16px 0;
+          background: {{ tokens.coral }}; color: #fff; box-shadow: {{ tokens.shadow }};
+          border: {{ tokens.border }}; }
+  .dial .num { font-family: '{{ tokens.font_mono }}'; font-size: 38pt; font-weight: 700; line-height: 1; }
+  .dial .lab { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th, td { text-align: left; padding: 5px 7px; border: 1px solid #ddd; font-size: 9.5pt; vertical-align: top; }
+  th { background: {{ tokens.sage }}; font-family: '{{ tokens.font_mono }}'; }
+  .mono { font-family: '{{ tokens.font_mono }}'; }
+  .yes { color: {{ tokens.coral }}; font-weight: 700; }
+  .no  { color: {{ tokens.charcoal }}; opacity: 0.5; }
+  .answer { background: {{ tokens.cream }}; border: 1px solid #e2ddd0; padding: 8px 10px;
+            margin: 4px 0 14px; font-size: 8.6pt; line-height: 1.4; white-space: pre-wrap;
+            word-wrap: break-word; }
+  .qhead { margin: 12px 0 2px; }
+  .qhead .q { font-weight: 700; }
+  .badge { font-family: '{{ tokens.font_mono }}'; font-size: 7.5pt; text-transform: uppercase;
+           letter-spacing: 0.08em; padding: 1px 6px; border: {{ tokens.border }}; }
+  .badge.hit { background: {{ tokens.coral }}; color: #fff; }
+  .badge.miss { background: #eee; color: #555; }
+  mark { background: #ffe08a; padding: 0 1px; }
+  .meta td { font-size: 9pt; }
+  .footer { margin-top: 24px; padding-top: 10px; border-top: {{ tokens.border }};
+            font-size: 8pt; font-family: '{{ tokens.font_mono }}'; color: #666; }
+</style>
+</head>
+<body>
+
+<section>
+  <div class="kicker">INTERNAL · Operator Report · not for the client</div>
+  <h1 class="title">{{ company.name }}</h1>
+  <div>{{ company.town }}{% if company.county %}, {{ company.county }}{% endif %}
+       {% if trade %} · {{ trade }}{% endif %}</div>
+  <div class="dial"><div class="num">{{ composite }}</div><div class="lab">AI visibility / 100</div></div>
+
+  <h2>Run summary</h2>
+  <table class="meta">
+    <tr><th>Run date</th><td>{{ run_date }}</td><th>Source</th><td>{{ "cached" if cached else "fresh scan" }}</td></tr>
+    <tr><th>Website</th><td>{{ company.website }}</td><th>Cost</th><td class="mono">${{ '%.4f'|format(cost or 0) }}</td></tr>
+    <tr><th>Engines answered</th><td class="mono">{{ platforms_tested }}/5</td>
+        <th>Engines that named you</th><td class="mono">{{ platforms_mentioned }}/5</td></tr>
+    <tr><th>Prompts answered</th><td class="mono">{{ prompts_total }}</td>
+        <th>Prompts that named you</th><td class="mono">{{ prompts_mentioned }}</td></tr>
+  </table>
+  <p class="mono" style="font-size:9pt;">Score = (engines_named / engines_tested) × 70
+     + (prompts_named / prompts_total) × 30
+     = ({{ platforms_mentioned }}/{{ platforms_tested }})×70 + ({{ prompts_mentioned }}/{{ prompts_total }})×30
+     = <b>{{ composite }}</b></p>
+</section>
+
+<section class="page-break">
+  <h2>Per-engine × per-question grid</h2>
+  <table>
+    <tr><th>Question</th>{% for e in engines %}<th>{{ e }}</th>{% endfor %}</tr>
+    {% for q in queries %}
+    <tr>
+      <td>{{ loop.index }}. {{ q }}</td>
+      {% for e in engines %}
+      {% set cell = grid[e][q] %}
+      <td class="mono">{% if cell is none %}—{% elif cell %}<span class="yes">YES</span>{% else %}<span class="no">no</span>{% endif %}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Competitors named by the engines</h2>
+  {% if competitors %}
+  <table><tr><th>#</th><th>Business</th></tr>
+  {% for c in competitors %}<tr><td class="mono">{{ loop.index }}</td><td>{{ c }}</td></tr>{% endfor %}
+  </table>
+  {% else %}<p>None extracted.</p>{% endif %}
+</section>
+
+{% for eng in detail %}
+<section class="page-break">
+  <h2>{{ eng.engine }} — full answers</h2>
+  {% for item in eng.items %}
+  <div class="qhead"><span class="q">Q{{ item.n }}: {{ item.query }}</span>
+    <span class="badge {{ 'hit' if item.mentioned else 'miss' }}">{{ 'NAMED YOU' if item.mentioned else 'not named' }}</span></div>
+  <div class="answer">{{ item.text_html|safe }}</div>
+  {% endfor %}
+</section>
+{% endfor %}
+
+<div class="footer">
+  {{ tokens.company_name }} · internal operator report · generated {{ run_date }}
+</div>
+
+</body>
+</html>

@@ -105,7 +105,8 @@ def _pdf_b64(path_str: str | None) -> str:
     return base64.b64encode(p.read_bytes()).decode("ascii")
 
 
-def _result_payload(company, result: dict, *, cached: bool, pdf_b64: str) -> dict:
+def _result_payload(company, result: dict, *, cached: bool, pdf_b64: str,
+                    operator_pdf_b64: str = "") -> dict:
     tested = result.get("platforms_tested") or 0
     mentioned = result.get("platforms_mentioned") or 0
     competitors = result.get("competitors") or []
@@ -127,6 +128,7 @@ def _result_payload(company, result: dict, *, cached: bool, pdf_b64: str) -> dic
         "headline": result.get("headline"),
         "report_path": result.get("report_path"),
         "pdf_b64": pdf_b64,
+        "operator_pdf_b64": operator_pdf_b64,
         "cost_usd": result.get("cost_usd"),
     }
 
@@ -163,6 +165,7 @@ def run_inbound(company_name: str, website: str, location: str = "",
                 return _result_payload(
                     db.get_company(conn, existing["id"]), cached_result,
                     cached=True, pdf_b64=_pdf_b64(chk["report_path"]),
+                    operator_pdf_b64=_pdf_b64(report.operator_report_path(chk["report_path"])),
                 )
             company_id = existing["id"]
             fields = {"phone": phone or existing["phone"],
@@ -193,6 +196,7 @@ def run_inbound(company_name: str, website: str, location: str = "",
         return _result_payload(
             db.get_company(conn, company_id), result,
             cached=False, pdf_b64=_pdf_b64(result["report_path"]),
+            operator_pdf_b64=_pdf_b64(result.get("operator_report_path")),
         )
     finally:
         conn.close()
