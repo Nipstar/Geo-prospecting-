@@ -68,6 +68,13 @@ AI_OVERVIEW_ENGINE = "ai_overview"
 # Full engine order for a check (the four models above + AI Overview).
 CHECK_ENGINES = list(CHECK_MODELS.keys()) + [AI_OVERVIEW_ENGINE]
 
+# Web search: attach OpenRouter's web plugin so the chat models answer from live
+# search results, not just training data — matches how real AI products (ChatGPT
+# search, Gemini grounding) actually answer. Perplexity/sonar already searches
+# natively so it's skipped. Costs ~$0.02/probe extra. Toggle with CHECK_WEB_SEARCH=0.
+WEB_SEARCH = os.getenv("CHECK_WEB_SEARCH", "1").strip().lower() not in ("0", "false", "no", "")
+WEB_SEARCH_MAX_RESULTS = int(os.getenv("CHECK_WEB_SEARCH_MAX", "5"))
+
 # Rough $ per probe call for the pre-batch cost guard. OpenRouter cost is also
 # tracked live per call via usage accounting; these are just the estimate.
 COST_PER_PROBE = {

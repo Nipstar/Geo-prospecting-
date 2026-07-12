@@ -150,6 +150,22 @@ def extract_competitors(text: str, brand_name: str) -> list[str]:
 
 
 # --- OpenRouter call (cost-tracked) ---------------------------------------
+def _payload(model: str, prompt: str) -> dict:
+    """Chat-completions body. Attaches OpenRouter's web plugin so the model
+    answers from live search (config.WEB_SEARCH), except Perplexity/sonar which
+    already searches natively — no point paying for the plugin on top."""
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1000,
+        "temperature": 0.7,
+        "usage": {"include": True},
+    }
+    if config.WEB_SEARCH and "perplexity" not in model.lower() and "sonar" not in model.lower():
+        body["plugins"] = [{"id": "web", "max_results": config.WEB_SEARCH_MAX_RESULTS}]
+    return body
+
+
 def query_openrouter_full(prompt: str, model: str, api_key: str | None = None) -> Optional[dict]:
     """Call OpenRouter, return {text, cost_usd, tokens}. Requests usage
     accounting so cost is logged per check. Returns None on error."""
@@ -164,14 +180,8 @@ def query_openrouter_full(prompt: str, model: str, api_key: str | None = None) -
                 "Content-Type": "application/json",
                 **_HEADERS_EXTRA,
             },
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 1000,
-                "temperature": 0.7,
-                "usage": {"include": True},
-            },
-            timeout=45,
+            json=_payload(model, prompt),
+            timeout=60,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -185,3 +195,11 @@ def query_openrouter_full(prompt: str, model: str, api_key: str | None = None) -
         import sys
         print(f"[OpenRouter/{model}] error: {exc}", file=sys.stderr)
         return None
+
+
+if __name__ == "__main__":  # self-check: web plugin gating
+    if config.WEB_SEARCH:
+        assert "plugins" in _payload("openai/gpt-5.2-chat", "hi"), "web model should get plugin"
+        assert "plugins" not in _payload("perplexity/sonar", "hi"), "perplexity skips plugin"
+    assert _payload("openai/gpt-5.2-chat", "hi")["model"] == "openai/gpt-5.2-chat"
+    print("ai_query self-check ok (web_search=%s)" % config.WEB_SEARCH)
