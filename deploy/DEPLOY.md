@@ -51,8 +51,9 @@ Cloudflare-1010-blocks non-browsers), so create it in the **Coolify UI**:
    ```
    Expect JSON with `status:"done"`, `visibility_score`, `pdf_b64`.
    Form fields sent by the page: `name, email, phone, business_name, website_url,
-   location, trade, consent, company_size` (honeypot). `trade` (e.g. lawyer,
-   accountant) drives the probe prompts; if omitted, `/scan` classifies from the site.
+   location, consent, company_size` (honeypot). `/scan` also accepts an optional
+   `trade` (e.g. lawyer) that overrides classification, but the page does not send
+   it, so `/scan` classifies the trade from the site.
 
 ## 3. WF9 in n8n
 
