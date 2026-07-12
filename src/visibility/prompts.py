@@ -7,7 +7,7 @@ county.
 """
 from __future__ import annotations
 
-from ..config import QUERIES_PER_COMPANY
+from ..config import CHECK_COUNTRY, QUERIES_PER_COMPANY
 
 
 def _art(word: str) -> str:
@@ -32,11 +32,16 @@ def build_queries(company) -> list[str]:
         county = company["county"] or town
     except (IndexError, KeyError):
         county = town
+    # Append the country so an ambiguous town (Andover UK vs Andover, MA) doesn't
+    # make the model ask "which country?" and skip naming anyone.
+    country = CHECK_COUNTRY
+    place = ", ".join(p for p in [town, country] if p)
+    region = ", ".join(p for p in [county, country] if p)
     prompts = [
-        f"Who is the best {industry} in {town}?",
-        f"Recommend {_art(industry)} {industry} near {town}",
-        f"I need {_art(industry)} {industry} in {county}, who should I call?",
-        f"{industry} {town} reviews — who do you recommend?",
-        f"Compare {industry}s in {town}",
+        f"Who is the best {industry} in {place}?",
+        f"Recommend {_art(industry)} {industry} near {place}",
+        f"I need {_art(industry)} {industry} in {region}, who should I call?",
+        f"{industry} {place} reviews — who do you recommend?",
+        f"Compare {industry}s in {place}",
     ]
     return prompts[:QUERIES_PER_COMPANY]

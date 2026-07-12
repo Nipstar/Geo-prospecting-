@@ -33,31 +33,32 @@ PREWARM_WORKERS = 6
 _UK_POSTCODE = re.compile(r"^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$")
 
 
-def _normalize_town(location: str) -> str:
-    """Force a real town name for the probe prompts.
+def _normalize_location(location: str) -> tuple[str, str | None]:
+    """Resolve the location field to (town, county) for the probe prompts.
 
-    Users type a postcode in the location field, which makes prompts read
-    'best plumber in SP10 2PX' — geographic nonsense that scores a false 0.
-    If the input looks like a UK postcode, resolve it to its town via
-    postcodes.io (free, no key); otherwise return it unchanged. `parish` is the
-    town for a real place (Andover); `admin_district` (the council, e.g. Test
-    Valley) is the fallback for unparished cities.
-    # ponytail: postcodes.io only; if it's down we pass the postcode through
-    # rather than block the scan — worst case is the same as today.
+    Users type a postcode, which makes prompts read 'best plumber in SP10 2PX' —
+    geographic nonsense that scores a false 0. If the input looks like a UK
+    postcode, resolve it via postcodes.io (free, no key): `parish` is the town
+    for a real place (Andover), `admin_district` (the council, e.g. Test Valley)
+    the fallback for unparished cities; `admin_county` or `region` gives the
+    county. Non-postcode input is returned as the town, county None.
+    # ponytail: postcodes.io only; if it's down we pass the input through rather
+    # than block the scan — worst case is the same as today.
     """
     loc = (location or "").strip()
     if not loc or not _UK_POSTCODE.match(loc):
-        return loc
+        return loc, None
     try:
         r = requests.get(f"https://api.postcodes.io/postcodes/{loc}", timeout=8)
         if r.ok:
             res = r.json().get("result") or {}
             town = (res.get("parish") or res.get("admin_district") or "").strip()
+            county = (res.get("admin_county") or res.get("region") or "").strip() or None
             if town:
-                return town
+                return town, county
     except requests.RequestException:
         pass
-    return loc
+    return loc, None
 
 
 def _prewarm_probes(company) -> None:
@@ -141,7 +142,7 @@ def run_inbound(company_name: str, website: str, location: str = "",
     form) it drives the probe prompts and classification is skipped."""
     company_name = (company_name or "").strip() or (domain_of(website) or "This business")
     trade = (trade or "").strip()
-    location = _normalize_town(location)  # postcode -> town so prompts aren't geographic nonsense
+    location, county = _normalize_location(location)  # postcode -> (town, county); disambiguates prompts
     conn = db.get_connection()
     try:
         db.run_migrations(conn)
@@ -170,6 +171,8 @@ def run_inbound(company_name: str, website: str, location: str = "",
             company_id = existing["id"]
             fields = {"phone": phone or existing["phone"],
                       "town": location or existing["town"], "source": "landing"}
+            if county:
+                fields["county"] = county
             if trade:  # form-provided trade wins over any prior classification
                 fields["sector"] = trade
                 fields["primary_service"] = trade
@@ -177,7 +180,7 @@ def run_inbound(company_name: str, website: str, location: str = "",
         else:
             company_id = db.insert_company(
                 conn, name=company_name, website=website or None,
-                town=location or None, phone=phone or None,
+                town=location or None, county=county or None, phone=phone or None,
                 sector=trade or None, primary_service=trade or None,
                 source="landing", status="new",
             )
@@ -207,8 +210,8 @@ def _demo() -> None:
     import tempfile
 
     # location normalizer (offline: passthrough + postcode-shape detection only)
-    assert _normalize_town("Andover") == "Andover"
-    assert _normalize_town("  ") == ""
+    assert _normalize_location("Andover") == ("Andover", None)
+    assert _normalize_location("  ") == ("", None)
     assert _UK_POSTCODE.match("SP10 2PX") and not _UK_POSTCODE.match("Andover")
 
     from . import report as report_mod

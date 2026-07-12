@@ -75,6 +75,11 @@ CHECK_ENGINES = list(CHECK_MODELS.keys()) + [AI_OVERVIEW_ENGINE]
 WEB_SEARCH = os.getenv("CHECK_WEB_SEARCH", "1").strip().lower() not in ("0", "false", "no", "")
 WEB_SEARCH_MAX_RESULTS = int(os.getenv("CHECK_WEB_SEARCH_MAX", "5"))
 
+# Country appended to every probe prompt so an ambiguous town (Andover UK vs
+# Andover, Massachusetts) does not make the model ask "which country?" and skip
+# the answer. UK-focused deployment; override with CHECK_COUNTRY.
+CHECK_COUNTRY = os.getenv("CHECK_COUNTRY", "UK").strip()
+
 # Rough $ per probe call for the pre-batch cost guard. OpenRouter cost is also
 # tracked live per call via usage accounting; these are just the estimate.
 COST_PER_PROBE = {
