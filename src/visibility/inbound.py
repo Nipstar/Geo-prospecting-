@@ -165,7 +165,11 @@ def run_inbound(company_name: str, website: str, location: str = "",
         existing = db.find_company_by_domain(conn, domain) if domain else None
         if existing:
             chk = db.latest_check(conn, existing["id"])
-            if chk and chk["report_path"] and _within_days(chk["run_date"], DEDUP_DAYS):
+            # Only serve the cached PDF if the file still exists — checks from
+            # before the OUTPUT_DIR→volume fix point at wiped paths and would
+            # return an empty attachment (Brevo 400 "content is missing").
+            if (chk and chk["report_path"] and _within_days(chk["run_date"], DEDUP_DAYS)
+                    and Path(chk["report_path"]).exists()):
                 cached_result = {
                     "composite": chk["composite_score"],
                     "platforms_tested": chk["platforms_tested"],
