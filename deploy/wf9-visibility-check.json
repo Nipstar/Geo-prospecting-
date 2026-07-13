@@ -205,6 +205,33 @@
         1120,
         432
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{ '{{ $env.BREVO_API_KEY }}' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: 'hello@antekautomation.com', name: 'Antek Automation' }, to: [{ email: 'hello@antekautomation.com', name: 'Antek Operator' }], subject: '[INTERNAL] AI Visibility \u2014 ' + $('Scan (geo-scan)').item.json.business_name + ' (' + $('Scan (geo-scan)').item.json.visibility_score + '/100)', htmlContent: '<p>Lead: <strong>' + $('Scan (geo-scan)').item.json.business_name + '</strong> (' + $('Scan (geo-scan)').item.json.town + ')</p>' + '<p>Score ' + $('Scan (geo-scan)').item.json.visibility_score + '/100 \u00b7 mentioned ' + $('Scan (geo-scan)').item.json.platforms_mentioned + '/' + $('Scan (geo-scan)').item.json.platforms_tested + ' engines \u00b7 top competitor: ' + ($('Scan (geo-scan)').item.json.top_competitor || 'none') + '</p>' + '<p>Prospect: ' + $('Validate').item.json.name + ' \u00b7 ' + $('Validate').item.json.email + ' \u00b7 ' + ($('Validate').item.json.phone || 'no phone') + '</p>' + '<p>' + ($('Scan (geo-scan)').item.json.headline || '') + '</p>', attachment: [{ content: $('Scan (geo-scan)').item.json.operator_pdf_b64, name: $('Scan (geo-scan)').item.json.business_name + ' - operator report.pdf' }] }) }}",
+        "options": {}
+      },
+      "id": "wf9-operator-report",
+      "name": "Operator Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1604,
+        408
+      ]
     }
   ],
   "connections": {
@@ -286,6 +313,17 @@
         [
           {
             "node": "Telegram Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Notify": {
+      "main": [
+        [
+          {
+            "node": "Operator Report",
             "type": "main",
             "index": 0
           }
