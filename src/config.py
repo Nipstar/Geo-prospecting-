@@ -82,10 +82,17 @@ CHECK_COUNTRY = os.getenv("CHECK_COUNTRY", "UK").strip()
 
 # Rough $ per probe call for the pre-batch cost guard. OpenRouter cost is also
 # tracked live per call via usage accounting; these are just the estimate.
+# ai_overview: Apify johnvc actor, $0.01 setup + $0.015/retrieval; batched
+# prefetch amortises setup so ~$0.017/query typical, $0.04 worst (deferred).
 COST_PER_PROBE = {
     "ChatGPT": 0.01, "Claude": 0.01, "Gemini": 0.003,
     "Perplexity": 0.005, "ai_overview": 0.02,
 }
+
+# Apify actor for Google AI Overview probes (handles Google's deferred
+# page-token generation automatically — the thing SerpApi makes you do by
+# hand). Actor id uses ~ separator per Apify API convention.
+APIFY_AIO_ACTOR = os.getenv("APIFY_AIO_ACTOR", "johnvc~google-ai-overview-api")
 
 # --- LinkedIn cadence and caps ---------------------------------------------
 DAILY_CONNECTION_CAP = 15           # new connection notes per day (human-scale)
@@ -99,7 +106,12 @@ STANNP_TEST_MODE = True            # never live-post by accident
 STANNP_UNIT_PRICE_GBP = 0.79      # per letter, for cost estimates
 
 # --- Visibility check ------------------------------------------------------
-QUERIES_PER_COMPANY = 5
+QUERIES_PER_COMPANY = 5   # full prompt set — paid audit tier
+
+# The free lead-magnet check runs a subset of the buyer-intent prompts
+# (best / recommend / reviews). Full 5-prompt sweep is a paid-audit feature;
+# 3 keeps OpenRouter spend per free check roughly 40% lower.
+FREE_CHECK_QUERIES = int(os.getenv("FREE_CHECK_QUERIES", "3"))
 COMPANIES_HOUSE_RATE = (600, 300)  # 600 requests per 300 seconds (5 min)
 
 # --- Follow-up nudge -------------------------------------------------------

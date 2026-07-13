@@ -52,6 +52,9 @@ def score_company(conn, company, queries=None, engines=None, check_type="mini") 
     competitor_counts: dict[str, dict] = {}
     total_cost = 0.0
 
+    if config.AI_OVERVIEW_ENGINE in engines:
+        probes.prefetch_ai_overviews(conn, list(queries))  # one Apify run, not five
+
     for engine in engines:
         for query in queries:
             res = probes.run_probe(conn, engine, query)

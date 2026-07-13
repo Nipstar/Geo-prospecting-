@@ -136,7 +136,7 @@ def check() -> None:
 
 
 def _estimate_probe_cost(n_companies: int) -> float:
-    per = sum(config.COST_PER_PROBE.values()) * config.QUERIES_PER_COMPANY
+    per = sum(config.COST_PER_PROBE.values()) * config.FREE_CHECK_QUERIES
     return round(per * n_companies, 2)
 
 

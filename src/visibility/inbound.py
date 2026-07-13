@@ -69,8 +69,19 @@ def _prewarm_probes(company) -> None:
     on the file lock); a failed prefetch just falls back to a live call in
     score_company, so this only ever speeds things up."""
     queries = prompts.build_queries(company)
-    engines = config.CHECK_ENGINES
+    engines = [e for e in config.CHECK_ENGINES if e != config.AI_OVERVIEW_ENGINE]
     jobs = [(e, q) for e in engines for q in queries]
+
+    def _aio_batch() -> None:
+        """All 5 AI Overview queries in ONE Apify run (one setup fee)."""
+        c = db.get_connection()
+        try:
+            c.execute("PRAGMA busy_timeout=8000")
+            probes.prefetch_ai_overviews(c, list(queries))
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            c.close()
 
     def _one(job) -> None:
         engine, query = job
@@ -84,7 +95,9 @@ def _prewarm_probes(company) -> None:
             c.close()
 
     with ThreadPoolExecutor(max_workers=PREWARM_WORKERS) as ex:
+        aio_future = ex.submit(_aio_batch)
         list(ex.map(_one, jobs))
+        aio_future.result()
 
 
 def _within_days(run_date: str | None, days: int) -> bool:
