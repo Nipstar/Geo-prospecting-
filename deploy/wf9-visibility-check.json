@@ -1,8 +1,5 @@
 {
   "name": "WF9 - AI Visibility Check",
-  "settings": {
-    "executionOrder": "v1"
-  },
   "nodes": [
     {
       "parameters": {
@@ -17,7 +14,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        300
+        304
       ],
       "webhookId": "visibility-check"
     },
@@ -32,46 +29,41 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        220,
-        300
+        224,
+        304
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Honeypot + consent gate, then normalise. Return [] to stop silently.\nconst raw = $input.first().json;\nconst b = raw.body || raw;\nif (b.company_size && String(b.company_size).trim() !== '') return [];\nif (b.consent !== true && b.consent !== 'true') return [];\nconst email = String(b.email || '').trim().toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return [];\nlet website = String(b.website_url || '').trim();\nif (website && !/^https?:\\/\\//i.test(website)) website = 'https://' + website;\nif (!website) return [];\nreturn [{ json: {\n  name: String(b.name || '').trim(),\n  email,\n  phone: String(b.phone || '').trim(),\n  business_name: String(b.business_name || '').trim(),\n  website_url: website,\n  location: String(b.location || '').trim(),\n  trade: String(b.trade || '').trim()\n} }];"
+        "jsCode": "// Honeypot + consent gate, then normalise. Return [] to stop silently.\nconst raw = $input.first().json;\nconst b = raw.body || raw;\nif (b.company_size && String(b.company_size).trim() !== '') return [];\nif (b.consent !== true && b.consent !== 'true') return [];\nconst email = String(b.email || '').trim().toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return [];\nlet website = String(b.website_url || '').trim();\nif (website && !/^https?:\\/\\//i.test(website)) website = 'https://' + website;\nif (!website) return [];\nreturn [{ json: {\n  name: String(b.name || '').trim(),\n  email,\n  phone: String(b.phone || '').trim(),\n  business_name: String(b.business_name || '').trim(),\n  website_url: website,\n  location: String(b.location || '').trim()\n} }];"
       },
       "id": "wf9-validate",
       "name": "Validate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
-        300
+        448,
+        304
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://161.97.92.229/scan",
+        "url": "={{ 'https://geo-scan.cerberos.app' }}/scan",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Host",
-              "value": "geo-scan.cerberos.app"
-            },
-            {
               "name": "X-Scan-Token",
-              "value": "={{ $env.SCAN_TOKEN }}"
+              "value": "={{ {{ $env.SCAN_TOKEN }} }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name, website_url: $json.website_url, location: $json.location, email: $json.email, name: $json.name, phone: $json.phone, trade: $json.trade }) }}",
+        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name, website_url: $json.website_url, location: $json.location, email: $json.email, name: $json.name, phone: $json.phone }) }}",
         "options": {
-          "timeout": 180000,
-          "allowUnauthorizedCerts": true
+          "timeout": 180000
         }
       },
       "id": "wf9-scan",
@@ -79,8 +71,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
-        300
+        672,
+        304
       ]
     },
     {
@@ -88,7 +80,9 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
           },
           "combinator": "and",
           "conditions": [
@@ -110,7 +104,7 @@
       "typeVersion": 2,
       "position": [
         880,
-        300
+        304
       ]
     },
     {
@@ -122,13 +116,13 @@
           "parameters": [
             {
               "name": "api-key",
-              "value": "={{ $env.BREVO_API_KEY }}"
+              "value": "={{ '{{ $env.BREVO_API_KEY }}' }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ email: $('Validate').item.json.email, updateEnabled: true, attributes: { FIRSTNAME: $('Validate').item.json.name, PHONE: $('Validate').item.json.phone, BUSINESS_NAME: $json.business_name, DOMAIN: $json.domain, TOWN: $json.town, TRADE: $json.trade, VISIBILITY_SCORE: $json.visibility_score, MENTION_RATE: $json.mention_rate, TOP_COMPETITOR: $json.top_competitor, SCAN_DATE: $now.format('yyyy-MM-dd') }, listIds: [ Number($env.BREVO_LIST_ID) ] }) }}",
+        "jsonBody": "={{ JSON.stringify({ email: $('Validate').item.json.email, updateEnabled: true, attributes: { FIRSTNAME: $('Validate').item.json.name, PHONE: $('Validate').item.json.phone, BUSINESS_NAME: $json.business_name, DOMAIN: $json.domain, TOWN: $json.town, TRADE: $json.trade, VISIBILITY_SCORE: $json.visibility_score, MENTION_RATE: $json.mention_rate, TOP_COMPETITOR: $json.top_competitor, SCAN_DATE: $now.format('yyyy-MM-dd') }, listIds: [ Number(10) ] }) }}",
         "options": {}
       },
       "id": "wf9-brevo-upsert",
@@ -137,7 +131,7 @@
       "typeVersion": 4.2,
       "position": [
         1120,
-        200
+        208
       ]
     },
     {
@@ -149,13 +143,13 @@
           "parameters": [
             {
               "name": "api-key",
-              "value": "={{ $env.BREVO_API_KEY }}"
+              "value": "={{ '{{ $env.BREVO_API_KEY }}' }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.BREVO_FROM_EMAIL, name: $env.BREVO_FROM_NAME }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility result: ' + $('Scan (geo-scan)').item.json.business_name, htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your AI Visibility Check is attached. You scored <strong>' + $('Scan (geo-scan)').item.json.visibility_score + '/100</strong>. ' + ($('Scan (geo-scan)').item.json.headline || '') + '</p><p>Want the full picture? The GEO Audit is £247 with a prioritised fix list. Reply to this email or book at antekautomation.com/services/geo-audit.</p><p>Antek Automation · Chantry House, 38 Chantry Way, Andover SP10 1LZ · 0333 038 9960</p>', attachment: [{ content: $('Scan (geo-scan)').item.json.pdf_b64, name: 'ai-visibility-check.pdf' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: 'hello@antekautomation.com', name: 'Antek Automation' }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility result: ' + $('Scan (geo-scan)').item.json.business_name, htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your AI Visibility Check is attached. You scored <strong>' + $('Scan (geo-scan)').item.json.visibility_score + '/100</strong>. ' + ($('Scan (geo-scan)').item.json.headline || '') + '</p><p>Want the full picture? The GEO Audit is \u00a3247 with a prioritised fix list. Reply to this email or book at antekautomation.com/services/geo-audit.</p><p>Antek Automation \u00b7 Chantry House, 38 Chantry Way, Andover SP10 1LZ \u00b7 0333 038 9960</p>', attachment: [{ content: $('Scan (geo-scan)').item.json.pdf_b64, name: 'ai-visibility-check.pdf' }] }) }}",
         "options": {}
       },
       "id": "wf9-brevo-email",
@@ -163,17 +157,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1340,
-        200
+        1344,
+        208
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: 'New visibility check: ' + $('Scan (geo-scan)').item.json.business_name + ' (' + $('Scan (geo-scan)').item.json.town + ') scored ' + $('Scan (geo-scan)').item.json.visibility_score + '/100. Mentioned on ' + $('Scan (geo-scan)').item.json.platforms_mentioned + '/' + $('Scan (geo-scan)').item.json.platforms_tested + ' engines. Top competitor: ' + ($('Scan (geo-scan)').item.json.top_competitor || 'none') + '. Email: ' + $('Validate').item.json.email }) }}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: '5324189697', text: 'New visibility check: ' + $('Scan (geo-scan)').item.json.business_name + ' (' + $('Scan (geo-scan)').item.json.town + ') scored ' + $('Scan (geo-scan)').item.json.visibility_score + '/100. Mentioned on ' + $('Scan (geo-scan)').item.json.platforms_mentioned + '/' + $('Scan (geo-scan)').item.json.platforms_tested + ' engines. Top competitor: ' + ($('Scan (geo-scan)').item.json.top_competitor || 'none') + '. Email: ' + $('Validate').item.json.email }) }}",
         "options": {}
       },
       "id": "wf9-telegram",
@@ -181,8 +175,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
-        200
+        1568,
+        208
       ]
     },
     {
@@ -194,13 +188,13 @@
           "parameters": [
             {
               "name": "api-key",
-              "value": "={{ $env.BREVO_API_KEY }}"
+              "value": "={{ '{{ $env.BREVO_API_KEY }}' }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.BREVO_FROM_EMAIL, name: $env.BREVO_FROM_NAME }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility check is on its way', htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your check is taking a little longer than expected. We will send your report shortly.</p><p>Antek Automation · 0333 038 9960</p>' }) }}",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: 'hello@antekautomation.com', name: 'Antek Automation' }, to: [{ email: $('Validate').item.json.email, name: $('Validate').item.json.name }], subject: 'Your AI visibility check is on its way', htmlContent: '<p>Hi ' + ($('Validate').item.json.name || 'there') + ',</p><p>Your check is taking a little longer than expected. We will send your report shortly.</p><p>Antek Automation \u00b7 0333 038 9960</p>' }) }}",
         "options": {}
       },
       "id": "wf9-fail-email",
@@ -209,34 +203,7 @@
       "typeVersion": 4.2,
       "position": [
         1120,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.brevo.com/v3/smtp/email",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "api-key",
-              "value": "={{ $env.BREVO_API_KEY }}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.BREVO_FROM_EMAIL, name: $env.BREVO_FROM_NAME }, to: [{ email: $env.OPERATOR_EMAIL, name: 'Antek Ops' }], subject: '[INTERNAL] AI Visibility — ' + $('Scan (geo-scan)').item.json.business_name + ' (' + $('Scan (geo-scan)').item.json.visibility_score + '/100)', htmlContent: '<p>Operator report attached for <b>' + $('Scan (geo-scan)').item.json.business_name + '</b>. Score ' + $('Scan (geo-scan)').item.json.visibility_score + '/100 · mentioned on ' + $('Scan (geo-scan)').item.json.platforms_mentioned + '/' + $('Scan (geo-scan)').item.json.platforms_tested + ' engines.</p><p>Lead: ' + $('Validate').item.json.name + ' — ' + $('Validate').item.json.email + ' — ' + $('Validate').item.json.phone + '</p>', attachment: [{ content: $('Scan (geo-scan)').item.json.operator_pdf_b64, name: 'operator-report.pdf' }] }) }}",
-        "options": {}
-      },
-      "id": "wf9-operator-email",
-      "name": "Operator Report",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1340,
-        340
+        432
       ]
     }
   ],
@@ -318,17 +285,6 @@
       "main": [
         [
           {
-            "node": "Operator Report",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Operator Report": {
-      "main": [
-        [
-          {
             "node": "Telegram Notify",
             "type": "main",
             "index": 0
@@ -336,5 +292,9 @@
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   }
 }
