@@ -25,3 +25,4 @@ geo-slab/
 # OS
 .DS_Store
 Thumbs.db
+.env.bak

@@ -29,7 +29,7 @@ def _run_actor(sector: str, town: str, max_results: int) -> list[dict[str, Any]]
     }
     run = client.actor(ACTOR_ID).call(run_input=run_input)
     items: list[dict[str, Any]] = []
-    for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+    for item in client.dataset(run.default_dataset_id).iterate_items():
         items.append(item)
     return items
 
