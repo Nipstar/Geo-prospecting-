@@ -21,11 +21,15 @@ def _run_actor(sector: str, town: str, max_results: int) -> list[dict[str, Any]]
     if not config.APIFY_TOKEN:
         raise RuntimeError("APIFY_TOKEN is not set.")
     client = ApifyClient(config.APIFY_TOKEN)
+    # locationQuery geocodes to a bounded area so the map crawler stays put.
+    # Without it the actor wanders nationwide and returns out-of-area results.
     run_input = {
         "searchStringsArray": [f"{sector} in {town}"],
+        "locationQuery": f"{town}, UK",
         "maxCrawledPlacesPerSearch": max_results,
         "language": "en",
         "countryCode": "gb",
+        "skipClosedPlaces": True,
     }
     run = client.actor(ACTOR_ID).call(run_input=run_input)
     items: list[dict[str, Any]] = []
