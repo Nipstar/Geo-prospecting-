@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>AI Visibility Check — {{ firm }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1a1a1a; --panel:#1f1f1f; --line:#2f2f2f;
+    --coral:#ff5f3f; --coral-dk:#cd5c3c; --cream:#e8dcc8; --body:#f8f8f0;
+    --muted:#8f8880; --cyan:#9ff3ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',-apple-system,Segoe UI,Arial,sans-serif;color:var(--body);
+    background:var(--bg);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,.display{font-family:'Outfit',Arial,sans-serif;font-weight:800;line-height:1.05;letter-spacing:-.01em;color:var(--cream)}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  .wrap{max-width:780px;margin:0 auto;padding:24px 20px 64px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;margin:16px 0}
+  /* header / logo */
+  .top{display:flex;align-items:center;gap:12px;padding:6px 0 4px}
+  .logo{width:34px;height:34px;flex:none}
+  .brand{font-family:'Outfit';font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--cream);font-size:20px}
+  .kicker{color:var(--coral);font-family:'JetBrains Mono';font-weight:700;text-transform:uppercase;letter-spacing:.18em;font-size:12px}
+  h1{font-size:34px;margin:8px 0 4px;text-transform:uppercase}
+  h1 .accent{color:var(--coral)}
+  .sub{color:var(--muted);font-size:15px}
+  .scorewrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:6px}
+  .score{font-family:'Outfit';font-weight:800;font-size:68px;line-height:1;color:var(--coral)}
+  .score small{font-size:22px;color:var(--muted);font-weight:600}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:700;font-size:13px;color:var(--cream);background:#242424}
+  h2{font-size:22px;text-transform:uppercase;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  td{padding:10px 6px;border-bottom:1px solid var(--line);font-size:15px}
+  td.eng{font-weight:700;color:var(--cream)}
+  .absent{color:var(--coral);font-weight:700}
+  .appears{color:var(--cyan);font-weight:700}
+  blockquote{border-left:3px solid var(--coral);padding:8px 14px;margin:12px 0;background:#242220;border-radius:0 6px 6px 0;font-size:15px;color:#d8d4cc}
+  blockquote .q{display:block;margin-bottom:4px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:.06em}
+  .challenge{border:1px solid var(--coral);background:linear-gradient(180deg,#241a16,#1f1512)}
+  .challenge .try{display:inline-block;background:var(--coral);color:#1a1a1a;padding:9px 13px;margin-top:10px;font-weight:800;border-radius:6px}
+  form{display:grid;gap:10px;margin-top:14px}
+  input{border:1px solid var(--line);border-radius:8px;padding:13px;font-size:16px;font-family:inherit;background:#161616;color:var(--body)}
+  input::placeholder{color:#6f6a63}
+  button{border:none;border-radius:8px;background:var(--coral);color:#1a1a1a;font-weight:800;
+    font-family:'Outfit';font-size:17px;padding:14px;cursor:pointer;text-transform:uppercase;letter-spacing:.03em}
+  button:hover{filter:brightness(1.05)}
+  button:active{transform:translateY(1px)}
+  .ok{background:#16241c;border:1px solid var(--cyan);border-radius:8px;padding:12px;font-weight:700;color:var(--cyan);display:none;margin-top:10px}
+  .cal{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;min-height:540px;margin-top:6px}
+  .foot{font-size:13px;color:var(--muted);margin-top:26px;text-align:center;line-height:1.8}
+  a{color:var(--coral)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M50 8 L92 92 L66 92 L50 54 L34 92 L8 92 Z" fill="#e8dcc8"/>
+      <path d="M50 8 L50 54 L34 92 L8 92 Z" fill="#ff5f3f"/>
+    </svg>
+    <span class="brand">Antek&nbsp;Automation</span>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Your AI Visibility Check</div>
+    <h1>{{ firm }}</h1>
+    <div class="sub">{{ town }} · {{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
+    <div class="scorewrap">
+      <div class="score mono">{{ score }}<small>/100</small></div>
+      <div>
+        <div class="pill">{{ mentioned }} of {{ tested }} AI engines mention you</div>
+        <p class="sub" style="margin-top:8px">How visible {{ firm }} is when people ask AI tools for a {{ sector_word }} in {{ town }}.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Engine <span style="color:var(--coral)">by</span> engine</h2>
+    <table class="mono">
+      {% for e in engines %}
+      <tr><td class="eng">{{ e.label }}</td>
+          <td class="{{ 'appears' if e.appears else 'absent' }}">{{ 'APPEARS' if e.appears else 'ABSENT' }}</td>
+          <td style="text-align:right;color:var(--muted)">{{ e.score }}/100</td></tr>
+      {% endfor %}
+    </table>
+    {% if competitors %}
+    <p style="margin-top:16px;color:var(--body)"><strong style="color:var(--cream)">Who the AI recommends instead:</strong> {{ competitors }}</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>What the AI <span style="color:var(--coral)">actually</span> said</h2>
+    {% for q in quotes %}
+    <blockquote><span class="q">Asked: “{{ q.query }}” — {{ q.engine }}</span>{{ q.text }}</blockquote>
+    {% endfor %}
+  </div>
+
+  <div class="card challenge">
+    <h2 style="color:var(--cream)">Don’t take our word for it</h2>
+    <p>Open ChatGPT right now and ask: <em style="color:var(--cream)">“Who’s the best {{ sector_word }} in {{ town }}?”</em> See which firms it names. Then look for yours.</p>
+    <span class="try mono">Try: best {{ sector_word }} in {{ town }}</span>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Free · No obligation</div>
+    <h2>See the <span style="color:var(--coral)">full</span> breakdown</h2>
+    <p style="color:var(--body)">Every question we asked, what each AI said back, and the specific gaps costing you enquiries. Book a 15-minute call and we’ll walk you through it. No pitch.</p>
+    <div class="cal">
+      <div style="width:100%;height:540px;overflow:auto" id="my-cal-inline-30min"></div>
+      <script type="text/javascript">
+        (function (C, A, L) { let p = function (a, ar) { a.q.push(ar); }; let d = C.document; C.Cal = C.Cal || function () { let cal = C.Cal; let ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement("script")).src = A; cal.loaded = true; } if (ar[0] === L) { const api = function () { p(api, arguments); }; const namespace = ar[1]; api.q = api.q || []; if(typeof namespace === "string"){cal.ns[namespace] = cal.ns[namespace] || api;p(cal.ns[namespace], ar);p(cal, ["initNamespace", namespace]);} else p(cal, ar); return;} p(cal, ar); }; })(window, "https://app.cal.com/embed/embed.js", "init");
+        Cal("init", "30min", {origin:"https://app.cal.com"});
+        Cal.config = Cal.config || {}; Cal.config.forwardQueryParams = true;
+        Cal.ns["30min"]("inline", {
+          elementOrSelector:"#my-cal-inline-30min",
+          config: {"layout":"month_view","useSlotsViewOnSmallScreen":"true"},
+          calLink: "{{ cal_link }}",
+        });
+        Cal.ns["30min"]("ui", {"hideEventTypeDetails":false,"layout":"month_view"});
+      </script>
+    </div>
+
+    <p style="margin-top:20px;color:var(--body)"><strong style="color:var(--cream)">Prefer we just send it?</strong> Drop your email and we’ll post the full report over — no call needed.</p>
+    <form id="leadform">
+      <input type="hidden" name="slug" value="{{ slug }}">
+      <input type="hidden" name="firm" value="{{ firm }}">
+      <input type="text" name="name" placeholder="Your name" autocomplete="name">
+      <input type="email" name="email" placeholder="Your email" required autocomplete="email">
+      <button type="submit">Send me the full report</button>
+    </form>
+    <div class="ok" id="ok">Thanks — Andy will send your full AI Visibility Check shortly.</div>
+  </div>
+
+  <div class="foot">
+    Andy Norman · Antek Automation · Andover · 0333 038 9960<br>
+    We help {{ town }} firms show up when customers ask AI for a recommendation.
+  </div>
+</div>
+
+<script>
+document.getElementById('leadform').addEventListener('submit', async function(ev){
+  ev.preventDefault();
+  const btn = this.querySelector('button'); btn.disabled = true; btn.textContent = 'Sending…';
+  const data = Object.fromEntries(new FormData(this).entries());
+  try {
+    const r = await fetch('/api/lead', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+    if (!r.ok) throw new Error('bad status');
+    this.style.display='none'; document.getElementById('ok').style.display='block';
+  } catch(e){
+    btn.disabled=false; btn.textContent='Send me the full report';
+    alert('Something went wrong — please email andy@antekautomation.com');
+  }
+});
+</script>
+</body>
+</html>
