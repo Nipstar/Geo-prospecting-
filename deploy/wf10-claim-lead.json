@@ -1,0 +1,85 @@
+{
+  "name": "WF10 - Claim Page Lead",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "claim-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-claim-lead",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "claim-lead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "api-key", "value": "={{ $env.BREVO_API_KEY }}" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.body.email, updateEnabled: true, listIds: [ Number($env.CLAIM_LIST_ID) ], attributes: { FIRSTNAME: $json.body.firstName, LASTNAME: $json.body.lastName, FIRM: $json.body.firm, SLUG: $json.body.slug, SOURCE: 'claim-page' } }) }}",
+        "options": {}
+      },
+      "id": "brevo-upsert",
+      "name": "Brevo Upsert + List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: 'New claim-page lead\\nFirm: ' + ($json.body.firm || '?') + '\\nName: ' + ($json.body.name || '?') + '\\nEmail: ' + $json.body.email + '\\nPage: ' + $json.body.slug }) }}",
+        "options": {}
+      },
+      "id": "telegram-notify",
+      "name": "Telegram Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          { "node": "Brevo Upsert + List", "type": "main", "index": 0 },
+          { "node": "Telegram Notify", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Brevo Upsert + List": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    },
+    "Telegram Notify": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
