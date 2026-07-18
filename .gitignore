@@ -27,3 +27,5 @@ geo-slab/
 Thumbs.db
 .env.bak
 claim-site/dist/
+.wrangler/
+claim-site/.wrangler/
