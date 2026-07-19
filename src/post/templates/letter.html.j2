@@ -6,6 +6,11 @@
   {{ font_faces }}
   {{ base_css }}
   @page { size: A4; margin: 22mm 20mm; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .brandmark { display: flex; align-items: center; gap: 9px; }
+  .brandmark img { width: 42px; height: 42px; }
+  .brandmark .wm { font-family: '{{ tokens.font_display }}'; font-weight: 800;
+                   font-size: 13pt; letter-spacing: .02em; text-transform: uppercase; }
   .sender { text-align: right; font-family: '{{ tokens.font_mono }}'; font-size: 9pt; line-height: 1.4; }
   .addressee { margin-top: 18px; font-size: 11pt; line-height: 1.4; }
   .date { margin-top: 14px; font-family: '{{ tokens.font_mono }}'; font-size: 9pt; }
@@ -25,10 +30,15 @@
 </style>
 </head>
 <body>
-  <div class="sender">
-    {{ tokens.company_name }}<br>
-    {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
-    {{ tokens.phone }}
+  <div class="header">
+    <div class="brandmark">
+      <img src="logo.svg" alt="Antek Automation">
+      <span class="wm">Antek&nbsp;Automation</span>
+    </div>
+    <div class="sender">
+      {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
+      {{ tokens.phone }}
+    </div>
   </div>
 
   <div class="addressee">
