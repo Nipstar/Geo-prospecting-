@@ -80,14 +80,21 @@ def build(status: str | None, limit: int) -> list[str]:
         engines = [{"label": lbl, "score": int(v[col] or 0), "appears": (v[col] or 0) > 0}
                    for col, lbl in ENGINES]
         sector = (co["sector"] or "").lower()
+        director = conn.execute(
+            "select name from people where company_id=? and person_source='companies_house_officer' "
+            "and name is not null order by id limit 1", (co["id"],)).fetchone()
+        director = director["name"] if director else ""
+        competitors = v["competitor_named"] or ""
+        top_competitor = competitors.split(",")[0].strip() if competitors else ""
         html = tpl.render(
             firm=co["name"], town=co["town"] or "your area",
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
-            rating=co["places_rating"], reviews=co["places_reviews"],
+            rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
+            phone=co["phone"] or "", director=director,
             score=int(round(v["composite_score"])),
             mentioned=v["platforms_mentioned"], tested=v["platforms_tested"],
             sector_word=SECTOR_WORD.get(sector, sector or "firm"),
-            engines=engines, competitors=v["competitor_named"] or "",
+            engines=engines, competitors=competitors, top_competitor=top_competitor,
             quotes=quotes, slug=slugify(co["name"]), cal_link=CAL_LINK,
         )
         slug = slugify(co["name"])

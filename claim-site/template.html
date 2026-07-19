@@ -50,7 +50,8 @@
   button:hover{filter:brightness(1.05)}
   button:active{transform:translateY(1px)}
   .ok{background:#16241c;border:1px solid var(--cyan);border-radius:8px;padding:12px;font-weight:700;color:var(--cyan);display:none;margin-top:10px}
-  .cal{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;min-height:540px;margin-top:6px}
+  .cal{border:1px solid var(--line);border-radius:10px;overflow:visible;background:#fff;min-height:640px;margin-top:6px}
+  .cal-hint{font-size:12px;color:var(--muted);margin:6px 2px 0;font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:.06em}
   .foot{font-size:13px;color:var(--muted);margin-top:26px;text-align:center;line-height:1.8}
   a{color:var(--coral)}
 </style>
@@ -110,9 +111,10 @@
   <div class="card">
     <div class="kicker">Free · No obligation</div>
     <h2>See the <span style="color:var(--coral)">full</span> breakdown</h2>
-    <p style="color:var(--body)">Every question we asked, what each AI said back, and the specific gaps costing you enquiries. Book a 15-minute call and we’ll walk you through it. No pitch.</p>
+    <p style="color:var(--body)">Every question we asked, what each AI said back, and the specific gaps costing you enquiries. Book a 30-minute call and we’ll walk you through it. No pitch.</p>
+    <div class="cal-hint">Pick a date, then scroll for available times ↓</div>
     <div class="cal">
-      <div style="width:100%;height:540px;overflow:auto" id="my-cal-inline-30min"></div>
+      <div style="width:100%;min-height:640px" id="my-cal-inline-30min"></div>
       <script type="text/javascript">
         (function (C, A, L) { let p = function (a, ar) { a.q.push(ar); }; let d = C.document; C.Cal = C.Cal || function () { let cal = C.Cal; let ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement("script")).src = A; cal.loaded = true; } if (ar[0] === L) { const api = function () { p(api, arguments); }; const namespace = ar[1]; api.q = api.q || []; if(typeof namespace === "string"){cal.ns[namespace] = cal.ns[namespace] || api;p(cal.ns[namespace], ar);p(cal, ["initNamespace", namespace]);} else p(cal, ar); return;} p(cal, ar); }; })(window, "https://app.cal.com/embed/embed.js", "init");
         Cal("init", "30min", {origin:"https://app.cal.com"});
@@ -130,6 +132,15 @@
     <form id="leadform">
       <input type="hidden" name="slug" value="{{ slug }}">
       <input type="hidden" name="firm" value="{{ firm }}">
+      <input type="hidden" name="town" value="{{ town }}">
+      <input type="hidden" name="website" value="{{ website_display }}">
+      <input type="hidden" name="phone" value="{{ phone }}">
+      <input type="hidden" name="sector" value="{{ sector_word }}">
+      <input type="hidden" name="score" value="{{ score }}">
+      <input type="hidden" name="competitor" value="{{ top_competitor }}">
+      <input type="hidden" name="rating" value="{{ rating }}">
+      <input type="hidden" name="reviews" value="{{ reviews }}">
+      <input type="hidden" name="director" value="{{ director }}">
       <input type="text" name="name" placeholder="Your name" autocomplete="name">
       <input type="email" name="email" placeholder="Your email" required autocomplete="email">
       <button type="submit">Send me the full report</button>

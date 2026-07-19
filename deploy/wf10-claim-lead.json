@@ -28,7 +28,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ email: $json.body.email, updateEnabled: true, listIds: [ Number($env.CLAIM_LIST_ID) ], attributes: { FIRSTNAME: $json.body.firstName, LASTNAME: $json.body.lastName, FIRM: $json.body.firm, SLUG: $json.body.slug, SOURCE: 'claim-page' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ email: $json.body.email, updateEnabled: true, listIds: [ Number($env.CLAIM_LIST_ID) ], attributes: { FIRSTNAME: $json.body.firstName, LASTNAME: $json.body.lastName, BUSINESS_NAME: $json.body.firm, DOMAIN: $json.body.website, TOWN: $json.body.town, PHONE: $json.body.phone, TRADE: $json.body.sector, TOP_COMPETITOR: $json.body.competitor, DIRECTOR: $json.body.director, SLUG: $json.body.slug, VISIBILITY_SCORE: Number($json.body.score || 0), RATING: Number($json.body.rating || 0), REVIEWS: Number($json.body.reviews || 0) } }) }}",
         "options": {}
       },
       "id": "brevo-upsert",
