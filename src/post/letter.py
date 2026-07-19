@@ -44,6 +44,50 @@ def _qr_data_uri(url: str) -> str:
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+import gender_guesser.detector as _gender_mod
+
+_DETECTOR = _gender_mod.Detector(case_sensitive=False)
+
+
+def _salutation(full_name: str) -> str:
+    """Grammatical greeting: 'Mr Smith' / 'Ms Jones', or 'Sir or Madam' when the
+    forename's gender can't be determined. Never 'Mr/Ms'."""
+    tokens = [t for t in full_name.split() if t]
+    if not tokens:
+        return "Sir or Madam"
+    surname = tokens[-1]
+    lower = {t.lower().strip(".,") for t in tokens}
+    title = None
+    if "kaur" in lower:            # Sikh female name marker
+        title = "Ms"
+    elif "singh" in lower:         # Sikh male name marker
+        title = "Mr"
+    else:
+        g = _DETECTOR.get_gender(tokens[0])
+        if g in ("female", "mostly_female"):
+            title = "Ms"
+        elif g in ("male", "mostly_male"):
+            title = "Mr"
+    return f"{title} {surname}" if title else "Sir or Madam"
+
+
+def _opener(company, check, sector_word: str) -> str:
+    """A clean, grammatical opening finding built from the data (not the terse
+    mini-check headline)."""
+    town = company["town"] or "your area"
+    mentioned = check["platforms_mentioned"] or 0
+    tested = check["platforms_tested"] or 0
+    comp = (check["competitor_named"] or "").split(",")[0].strip()
+    if mentioned == 0:
+        line = (f"When people in {town} ask an AI tool like ChatGPT for a {sector_word}, "
+                f"{company['name']} does not appear at all across the {tested} engines I checked")
+    else:
+        line = (f"When people in {town} ask an AI tool like ChatGPT for a {sector_word}, "
+                f"{company['name']} appears in only {mentioned} of the {tested} engines I checked")
+    line += f", while {comp} appears in more." if comp else "."
+    return line
+
+
 def _addressee(conn, company) -> tuple[str, str, int | None]:
     """Return (addressee_line, salutation, person_id). Directors first."""
     people = db.get_people_for_company(conn, company["id"])
@@ -51,8 +95,7 @@ def _addressee(conn, company) -> tuple[str, str, int | None]:
     named = directors or [p for p in people if p["name"]]
     if named:
         p = named[0]
-        surname = p["name"].split()[-1]
-        return p["name"], f"Mr/Ms {surname}", p["id"]
+        return p["name"], _salutation(p["name"]), p["id"]
     return "The Owner", "Sir or Madam", None
 
 
@@ -94,7 +137,7 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
         salutation=salutation,
         delivery_address=_delivery_address(company),
         date_str=date.today().strftime("%d %B %Y"),
-        headline=check["headline_finding"] or "",
+        headline=_opener(company, check, sector_word),
         sector_word=sector_word,
         claim_url=claim_url,
         qr_data_uri=_qr_data_uri(claim_url),
