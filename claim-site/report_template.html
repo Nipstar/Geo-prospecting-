@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Full AI Visibility Report — {{ firm }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#1a1a1a;--panel:#1f1f1f;--line:#2f2f2f;--coral:#ff5f3f;--cream:#e8dcc8;--body:#f8f8f0;--muted:#8f8880;--cyan:#9ff3ff}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',Arial,sans-serif;color:var(--body);background:var(--bg);line-height:1.6;font-size:16px}
+  h1,h2,h3,.display{font-family:'Outfit',Arial,sans-serif;font-weight:800;line-height:1.1;letter-spacing:-.01em;color:var(--cream)}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .wrap{max-width:820px;margin:0 auto;padding:24px 20px 72px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;margin:16px 0}
+  .top{display:flex;align-items:center;gap:12px;padding:6px 0 4px}
+  .logo{width:34px;height:34px;flex:none}
+  .brand{font-family:'Outfit';font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--cream);font-size:20px}
+  .kicker{color:var(--coral);font-family:'JetBrains Mono';font-weight:700;text-transform:uppercase;letter-spacing:.16em;font-size:12px}
+  h1{font-size:32px;margin:8px 0 4px;text-transform:uppercase}
+  .sub{color:var(--muted);font-size:15px}
+  .score{font-family:'Outfit';font-weight:800;font-size:60px;line-height:1;color:var(--coral)}
+  .score small{font-size:20px;color:var(--muted)}
+  .scorewrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:8px}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:700;font-size:13px;color:var(--cream);background:#242424}
+  h2{font-size:22px;text-transform:uppercase;margin-bottom:2px}
+  h2 .a{color:var(--coral)}
+  .q{margin:22px 0 6px;font-family:'Outfit';font-weight:700;color:var(--cream);font-size:18px}
+  .eng{border:1px solid var(--line);border-radius:8px;margin:8px 0;overflow:hidden}
+  .eng-h{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#242424;font-weight:700}
+  .eng-name{font-family:'JetBrains Mono';font-size:14px}
+  .badge{font-family:'JetBrains Mono';font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .b-absent{color:var(--coral);border:1px solid var(--coral)}
+  .b-appears{color:var(--cyan);border:1px solid var(--cyan)}
+  .eng-body{padding:10px 12px;font-size:14px;color:#d8d4cc;white-space:pre-wrap}
+  mark{background:rgba(255,95,63,.28);color:var(--cream);padding:0 2px;border-radius:3px}
+  mark.you{background:rgba(159,243,255,.25)}
+  .fix{border-left:3px solid var(--coral);padding:6px 14px;margin:10px 0;background:#241a16}
+  .cta{border:1px solid var(--coral);background:linear-gradient(180deg,#241a16,#1f1512)}
+  a.btn{display:inline-block;background:var(--coral);color:#1a1a1a;font-weight:800;font-family:'Outfit';
+    text-decoration:none;padding:13px 20px;border-radius:8px;margin-top:8px;text-transform:uppercase;letter-spacing:.03em}
+  .foot{font-size:13px;color:var(--muted);margin-top:26px;text-align:center;line-height:1.8}
+  a{color:var(--coral)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <img class="logo" src="/logo.svg" alt="Antek Automation" width="34" height="34">
+    <span class="brand">Antek&nbsp;Automation</span>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Full AI Visibility Report</div>
+    <h1>{{ firm }}</h1>
+    <div class="sub">{{ town }} · {{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
+    <div class="scorewrap">
+      <div class="score mono">{{ score }}<small>/100</small></div>
+      <div>
+        <div class="pill">{{ mentioned }} of {{ tested }} AI engines mention you</div>
+        <p class="sub" style="margin-top:8px">This is everything we found when we asked the major AI tools to recommend a {{ sector_word }} in {{ town }} — the exact questions, and each engine's answer word-for-word.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The <span class="a">evidence</span>, question by question</h2>
+    <p class="sub">Your firm is highlighted in <mark class="you">blue</mark>, competitors in <mark>coral</mark>.</p>
+    {% for q in questions %}
+    <div class="q">“{{ q.query }}”</div>
+    {% for e in q.engines %}
+    <div class="eng">
+      <div class="eng-h">
+        <span class="eng-name">{{ e.label }}</span>
+        <span class="badge {{ 'b-appears' if e.appears else 'b-absent' }}">{{ 'YOU APPEAR' if e.appears else 'YOU ARE ABSENT' }}</span>
+      </div>
+      <div class="eng-body">{{ e.html }}</div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>What this <span class="a">means</span></h2>
+    <p>When someone asks an AI tool for a {{ sector_word }} in {{ town }}, it recommends the firms it understands best — not necessarily the best firms. Right now it points them to {{ competitors }}. {{ firm }} scored {{ score }}/100, appearing on {{ mentioned }} of {{ tested }} engines.</p>
+    <h2 style="margin-top:18px">What we'd <span class="a">fix</span></h2>
+    <div class="fix">Make your services and locations explicit and consistent across your site, so the models can read exactly what you do and where.</div>
+    <div class="fix">Add the structured signals (schema, entity details, citations) the AI engines look for when choosing who to name.</div>
+    <div class="fix">Build the third-party mentions and consistent listings that push you into the "recommended" set.</div>
+  </div>
+
+  <div class="card cta">
+    <div class="kicker">Free · No obligation</div>
+    <h2>Want us to walk you through it?</h2>
+    <p>15–30 minutes. We'll show you exactly which fixes move the needle first for {{ firm }}, and what it takes. No pitch.</p>
+    <a class="btn" href="https://cal.com/{{ cal_link }}">Book a call</a>
+  </div>
+
+  <div class="foot">
+    Andy Norman · Antek Automation · Andover · 0333 038 9960<br>
+    We help {{ town }} firms show up when customers ask AI for a recommendation.
+  </div>
+</div>
+</body>
+</html>
