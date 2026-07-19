@@ -59,6 +59,10 @@ def build(status: str | None, limit: int) -> list[str]:
     tpl = Template((HERE / "template.html").read_text())
     dist = HERE / "dist"
     dist.mkdir(exist_ok=True)
+    # copy static assets (real logo) to the site root
+    logo = HERE / "logo.svg"
+    if logo.exists():
+        (dist / "logo.svg").write_bytes(logo.read_bytes())
 
     where = "EXISTS (SELECT 1 FROM visibility_checks v WHERE v.company_id=c.id)"
     params: list = []
