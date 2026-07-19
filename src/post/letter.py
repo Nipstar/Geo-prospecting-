@@ -114,8 +114,11 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
             f"No visibility check for {company['name']}. Run `cli check mini` first."
         )
     addressee, salutation, person_id = _addressee(conn, company)
-    code = _claim_code(conn)
-    claim_url = f"{config.CLAIM_BASE_URL}/{code}"
+    code = _claim_code(conn)  # kept for per-letter tracking in the letters table
+    # Letters link to the live personalised claim page (antek.link isn't live).
+    import os
+    claim_site = os.getenv("CLAIM_SITE_URL", "https://antek-claim.pages.dev").rstrip("/")
+    claim_url = f"{claim_site}/{slugify(company['name'])}"
     sector_word = None
     try:
         sector_word = company["primary_service"]
