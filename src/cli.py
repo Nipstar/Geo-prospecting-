@@ -156,21 +156,32 @@ def _estimate_probe_cost(n_companies: int) -> float:
 @check.command("mini")
 @click.option("--company-id", type=int)
 @click.option("--status", default=None)
+@click.option("--town", default=None, help="Only check companies in this town (comma-separated). Scopes a batch to one market.")
+@click.option("--country", default=None, help="Geo for the probes (e.g. US). Sets CHECK_COUNTRY for this run.")
 @click.option("--limit", default=10, type=int)
 @click.option("--yes", is_flag=True, help="Skip the cost confirmation.")
-def check_mini(company_id: int | None, status: str | None, limit: int, yes: bool) -> None:
+def check_mini(company_id: int | None, status: str | None, town: str | None,
+               country: str | None, limit: int, yes: bool) -> None:
+    from . import config
     from .visibility import score
+
+    if country:
+        config.CHECK_COUNTRY = country.strip()
 
     conn = db.get_connection()
     try:
         if company_id:
             targets = [db.get_company(conn, company_id)]
-        elif status:
-            targets = db.get_companies_by_status(conn, status, limit)
+        elif status or town:
+            targets = db.get_companies_by_status(conn, status or "new", 100000)
         else:
-            console.print("[red]Pass --company-id or --status.[/red]")
+            console.print("[red]Pass --company-id, --status or --town.[/red]")
             return
         targets = [t for t in targets if t]
+        if town:
+            wanted = {w.strip().lower() for w in town.split(",")}
+            targets = [t for t in targets if (t["town"] or "").lower() in wanted]
+        targets = targets[:limit]
         est = _estimate_probe_cost(len(targets))
         console.print(f"[yellow]About to run mini checks on {len(targets)} companies. "
                       f"Estimated API cost: ~${est}[/yellow]")
