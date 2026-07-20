@@ -33,11 +33,12 @@ def ingest() -> None:
 @click.option("--sector", required=True)
 @click.option("--town", required=True)
 @click.option("--max", "max_results", default=50, type=int)
+@click.option("--country", default=None, help="Country name/code (e.g. US). Defaults to CHECK_COUNTRY / UK.")
 @click.option("--dry-run", is_flag=True)
-def ingest_places(sector: str, town: str, max_results: int, dry_run: bool) -> None:
+def ingest_places(sector: str, town: str, max_results: int, country: str | None, dry_run: bool) -> None:
     from .ingest import places
 
-    res = places.run_places_search(sector, town, max_results, dry_run=dry_run)
+    res = places.run_places_search(sector, town, max_results, dry_run=dry_run, country=country)
     console.print(res)
 
 

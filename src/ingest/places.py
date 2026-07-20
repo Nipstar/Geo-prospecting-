@@ -14,7 +14,7 @@ from . import util
 ACTOR_ID = "compass/crawler-google-places"
 
 
-def _run_actor(sector: str, town: str, max_results: int) -> list[dict[str, Any]]:
+def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb") -> list[dict[str, Any]]:
     """Call the Apify actor and return raw place dicts."""
     from apify_client import ApifyClient
 
@@ -28,7 +28,7 @@ def _run_actor(sector: str, town: str, max_results: int) -> list[dict[str, Any]]
         "locationQuery": f"{town}, UK",
         "maxCrawledPlacesPerSearch": max_results,
         "language": "en",
-        "countryCode": "gb",
+        "countryCode": country_code,
         "skipClosedPlaces": True,
     }
     run = client.actor(ACTOR_ID).call(run_input=run_input)
@@ -55,10 +55,16 @@ def _map_place(item: dict[str, Any], sector: str, town: str) -> dict[str, Any]:
 
 
 def run_places_search(
-    sector: str, town: str, max_results: int = 50, dry_run: bool = False
+    sector: str, town: str, max_results: int = 50, dry_run: bool = False,
+    country: str | None = None,
 ) -> dict[str, int]:
-    """Prospect a sector in a town. Returns counts. dry_run prints, no writes."""
-    raw = _run_actor(sector, town, max_results)
+    """Prospect a sector in a town. Returns counts. dry_run prints, no writes.
+
+    country: name/code (e.g. "US"); defaults to CHECK_COUNTRY / UK, so existing
+    UK behaviour is unchanged when omitted.
+    """
+    country_code = config.country_geo(country)[0]
+    raw = _run_actor(sector, town, max_results, country_code=country_code)
     conn = db.get_connection()
     inserted = skipped_chain = skipped_dupe = 0
     try:
