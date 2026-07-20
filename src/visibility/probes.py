@@ -69,8 +69,9 @@ def _apify_aio_fetch(queries: list[str]) -> dict[str, str] | None:
     actor = config.APIFY_AIO_ACTOR
     url = (f"https://api.apify.com/v2/acts/{actor}/"
            f"run-sync-get-dataset-items?token={config.APIFY_TOKEN}")
-    payload = {"queries": queries, "gl": "gb", "hl": "en",
-               "location": "United Kingdom"}
+    gl, location = config.country_geo()
+    payload = {"queries": queries, "gl": gl, "hl": "en",
+               "location": location}
     for attempt in range(3):
         try:
             resp = requests.post(url, json=payload, timeout=180)
@@ -140,13 +141,14 @@ def _serpapi_aio(query: str) -> str:
     page_token (Google deferred generation — the common case), follow it with
     a second engine=google_ai_overview request. The old code skipped this, so
     most real AI Overviews came back NO_AI_OVERVIEW."""
+    gl, location = config.country_geo()
     for attempt in range(3):
         try:
             resp = requests.get(
                 "https://serpapi.com/search",
                 params={
-                    "q": query, "location": "United Kingdom",
-                    "gl": "gb", "hl": "en", "api_key": config.SERPAPI_KEY,
+                    "q": query, "location": location,
+                    "gl": gl, "hl": "en", "api_key": config.SERPAPI_KEY,
                 },
                 timeout=30,
             )

@@ -77,8 +77,27 @@ WEB_SEARCH_MAX_RESULTS = int(os.getenv("CHECK_WEB_SEARCH_MAX", "5"))
 
 # Country appended to every probe prompt so an ambiguous town (Andover UK vs
 # Andover, Massachusetts) does not make the model ask "which country?" and skip
-# the answer. UK-focused deployment; override with CHECK_COUNTRY.
+# the answer. UK-focused by default; override with CHECK_COUNTRY (e.g. "US").
 CHECK_COUNTRY = os.getenv("CHECK_COUNTRY", "UK").strip()
+
+# Geo-targeting map: country name/code -> (SerpAPI/Apify gl code, human location).
+# Add entries here to support new markets.
+_COUNTRY_GEO = {
+    "UK": ("gb", "United Kingdom"), "GB": ("gb", "United Kingdom"),
+    "GREAT BRITAIN": ("gb", "United Kingdom"), "UNITED KINGDOM": ("gb", "United Kingdom"),
+    "US": ("us", "United States"), "USA": ("us", "United States"),
+    "UNITED STATES": ("us", "United States"),
+}
+
+
+def country_geo(country: str | None = None) -> tuple[str, str]:
+    """Return (gl_code, location_name) for search geo-targeting.
+
+    Falls back to CHECK_COUNTRY, then UK, so existing UK behaviour is unchanged
+    when no country is supplied.
+    """
+    key = (country or CHECK_COUNTRY or "UK").strip().upper()
+    return _COUNTRY_GEO.get(key, ("gb", "United Kingdom"))
 
 # Rough $ per probe call for the pre-batch cost guard. OpenRouter cost is also
 # tracked live per call via usage accounting; these are just the estimate.
