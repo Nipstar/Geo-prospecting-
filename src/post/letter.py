@@ -166,9 +166,15 @@ def _render_pdf(html: str, out_path: Path) -> None:
     HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf(str(out_path))
 
 
-def draft_letters_for_post(limit: int = 25, dry_run: bool = False) -> list[dict]:
+def draft_letters_for_post(limit: int = 25, dry_run: bool = False,
+                           max_score: float | None = None) -> list[dict]:
     """Draft first letters for post-channel companies that have a check and no
-    letter yet."""
+    letter yet.
+
+    max_score: skip companies whose latest visibility score is above this — a
+    firm already visible in AI (e.g. 70+) is a poor fit for a "you're invisible"
+    letter and is likely a competitor named in everyone else's opener.
+    """
     conn = db.get_connection()
     out: list[dict] = []
     try:
@@ -177,8 +183,11 @@ def draft_letters_for_post(limit: int = 25, dry_run: bool = False) -> list[dict]
                WHERE c.channel = 'post' AND c.status NOT IN ('closed_lost','client')
                  AND EXISTS (SELECT 1 FROM visibility_checks v WHERE v.company_id = c.id)
                  AND NOT EXISTS (SELECT 1 FROM letters l WHERE l.company_id = c.id)
-               ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?""",
-            (limit,),
+                 AND (?1 IS NULL OR COALESCE(
+                     (SELECT v.composite_score FROM visibility_checks v
+                      WHERE v.company_id = c.id ORDER BY v.id DESC LIMIT 1), 0) <= ?1)
+               ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?2""",
+            (max_score, limit),
         ).fetchall()
         for company in rows:
             if dry_run:
