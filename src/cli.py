@@ -95,6 +95,18 @@ def ingest_sunbiz(state: str, limit: int, dry_run: bool) -> None:
     console.print(res)
 
 
+@ingest.command("linkedin")
+@click.option("--town", default=None, help="Only companies in this town.")
+@click.option("--limit", default=25, type=int)
+@click.option("--dry-run", is_flag=True)
+def ingest_linkedin(town: str | None, limit: int, dry_run: bool) -> None:
+    """Owner enrichment via LinkedIn (name + profile URL). Activates the LinkedIn DM channel."""
+    from .ingest import linkedin
+
+    res = linkedin.run_linkedin_enrich(limit=limit, town=town, dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("pitchability")
 @click.option("--limit", default=None, type=int)
 def pitchability_cmd(limit: int | None) -> None:
