@@ -11,7 +11,7 @@ from src import db  # noqa: E402
 from src.post import letter as L  # noqa: E402
 from src.visibility.report import slugify  # noqa: E402
 
-SITE = "https://antek-claim.pages.dev"
+SITE = "https://go.antekautomation.com"
 _PC = re.compile(r"([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})", re.I)
 
 conn = db.get_connection()
