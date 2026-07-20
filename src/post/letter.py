@@ -91,7 +91,8 @@ def _opener(company, check, sector_word: str) -> str:
 def _addressee(conn, company) -> tuple[str, str, int | None]:
     """Return (addressee_line, salutation, person_id). Directors first."""
     people = db.get_people_for_company(conn, company["id"])
-    directors = [p for p in people if p["person_source"] == "companies_house_officer" and p["name"]]
+    _official = {"companies_house_officer", "sunbiz_officer"}
+    directors = [p for p in people if p["person_source"] in _official and p["name"]]
     named = directors or [p for p in people if p["name"]]
     if named:
         p = named[0]

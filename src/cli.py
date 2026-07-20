@@ -83,6 +83,18 @@ def ingest_ch(status: str, limit: int, dry_run: bool) -> None:
     console.print(res)
 
 
+@ingest.command("sunbiz")
+@click.option("--state", default="FL", help="US state (currently Florida via Sunbiz).")
+@click.option("--limit", default=50, type=int)
+@click.option("--dry-run", is_flag=True)
+def ingest_sunbiz(state: str, limit: int, dry_run: bool) -> None:
+    """US owner enrichment: attach a Florida Sunbiz officer name + mailing address."""
+    from .ingest import sunbiz
+
+    res = sunbiz.run_sunbiz_enrich(state=state, limit=limit, dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("pitchability")
 @click.option("--limit", default=None, type=int)
 def pitchability_cmd(limit: int | None) -> None:
