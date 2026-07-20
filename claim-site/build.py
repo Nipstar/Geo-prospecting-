@@ -167,6 +167,7 @@ def build(status: str | None, limit: int) -> list[str]:
             score=int(round(v["composite_score"])), mentioned=v["platforms_mentioned"], tested=v["platforms_tested"],
             sector_word=SECTOR_WORD.get(sector, sector or "firm"),
             competitors=comp_str or "other firms", questions=questions, cal_link=CAL_LINK,
+            slug=slugify(co["name"]),
         )
         rdir = dist / "report" / slugify(co["name"])
         rdir.mkdir(exist_ok=True)

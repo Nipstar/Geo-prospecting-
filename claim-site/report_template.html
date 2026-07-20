@@ -102,5 +102,18 @@
     We help {{ town }} firms show up when customers ask AI for a recommendation.
   </div>
 </div>
+<script>
+// Hot-lead ping: report view = high intent. Fires once per prospect per day.
+(function(){
+  try{
+    var slug="{{ slug }}", firm="{{ firm }}";
+    var key="av_report_"+slug+"_"+new Date().toISOString().slice(0,10);
+    if(localStorage.getItem(key)) return;
+    localStorage.setItem(key,"1");
+    fetch("/api/view",{method:"POST",headers:{"Content-Type":"application/json"},
+      keepalive:true,body:JSON.stringify({slug:slug,firm:firm,page:"report"})});
+  }catch(e){}
+})();
+</script>
 </body>
 </html>

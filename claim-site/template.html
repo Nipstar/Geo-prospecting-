@@ -152,6 +152,19 @@
 </div>
 
 <script>
+// Hot-lead ping: fire once per prospect per day so Andy knows a letter landed.
+(function(){
+  try{
+    var slug="{{ slug }}", firm="{{ firm }}";
+    var key="av_"+slug+"_"+new Date().toISOString().slice(0,10);
+    if(localStorage.getItem(key)) return;
+    localStorage.setItem(key,"1");
+    fetch("/api/view",{method:"POST",headers:{"Content-Type":"application/json"},
+      keepalive:true,body:JSON.stringify({slug:slug,firm:firm,page:"claim"})});
+  }catch(e){}
+})();
+</script>
+<script>
 document.getElementById('leadform').addEventListener('submit', async function(ev){
   ev.preventDefault();
   const btn = this.querySelector('button'); btn.disabled = true; btn.textContent = 'Sending…';
