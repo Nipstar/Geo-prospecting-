@@ -14,7 +14,8 @@ from . import util
 ACTOR_ID = "compass/crawler-google-places"
 
 
-def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb") -> list[dict[str, Any]]:
+def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb",
+               location_name: str = "United Kingdom") -> list[dict[str, Any]]:
     """Call the Apify actor and return raw place dicts."""
     from apify_client import ApifyClient
 
@@ -25,7 +26,7 @@ def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb
     # Without it the actor wanders nationwide and returns out-of-area results.
     run_input = {
         "searchStringsArray": [f"{sector} in {town}"],
-        "locationQuery": f"{town}, UK",
+        "locationQuery": f"{town}, {location_name}",
         "maxCrawledPlacesPerSearch": max_results,
         "language": "en",
         "countryCode": country_code,
@@ -44,6 +45,13 @@ def _map_place(item: dict[str, Any], sector: str, town: str) -> dict[str, Any]:
         "website": item.get("website") or "",
         "town": item.get("city") or town,
         "county": item.get("state") or item.get("county"),
+        # Full street address from Places = a mailable address (esp. US, where
+        # there's no Companies House registered office). UK letters still prefer
+        # the CH registered office when enrichment overwrites this.
+        "registered_address": (item.get("address")
+                               or ", ".join(p for p in [item.get("street"), item.get("city"),
+                                                        item.get("state"), item.get("postalCode")] if p)
+                               or ""),
         "sector": sector,
         "phone": item.get("phone") or item.get("phoneUnformatted"),
         "places_rating": item.get("totalScore") or item.get("rating"),
@@ -63,8 +71,9 @@ def run_places_search(
     country: name/code (e.g. "US"); defaults to CHECK_COUNTRY / UK, so existing
     UK behaviour is unchanged when omitted.
     """
-    country_code = config.country_geo(country)[0]
-    raw = _run_actor(sector, town, max_results, country_code=country_code)
+    country_code, location_name = config.country_geo(country)
+    raw = _run_actor(sector, town, max_results, country_code=country_code,
+                     location_name=location_name)
     conn = db.get_connection()
     inserted = skipped_chain = skipped_dupe = 0
     try:
