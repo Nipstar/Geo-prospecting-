@@ -116,10 +116,11 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
         )
     addressee, salutation, person_id = _addressee(conn, company)
     code = _claim_code(conn)  # kept for per-letter tracking in the letters table
-    # Letters link to the live personalised claim page (antek.link isn't live).
+    # Letters link to the live personalised claim page. Use the short stable slug.
     import os
     claim_site = os.getenv("CLAIM_SITE_URL", "https://antek-claim.pages.dev").rstrip("/")
-    claim_url = f"{claim_site}/{slugify(company['name'])}"
+    slug = (company["slug"] if "slug" in company.keys() and company["slug"] else slugify(company["name"]))
+    claim_url = f"{claim_site}/{slug}"
     sector_word = None
     try:
         sector_word = company["primary_service"]
@@ -178,6 +179,7 @@ def draft_letters_for_post(limit: int = 25, dry_run: bool = False,
     conn = db.get_connection()
     out: list[dict] = []
     try:
+        db.ensure_slugs(conn)
         rows = conn.execute(
             """SELECT c.* FROM companies c
                WHERE c.channel = 'post' AND c.status NOT IN ('closed_lost','client')

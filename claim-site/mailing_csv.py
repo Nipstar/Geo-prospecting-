@@ -41,7 +41,7 @@ with open(out_path, "w", newline="") as f:
         w.writerow([
             co["name"], addressee, f"Dear {salutation},", addr, postcode, co["town"] or "",
             co["phone"] or "", co["website"] or "", score, comp,
-            f"{SITE}/{slugify(co['name'])}", co["claim_code"] or "",
+            f"{SITE}/{co['slug'] or slugify(co['name'])}", co["claim_code"] or "",
             os.path.basename(co["pdf_path"] or ""),
         ])
 conn.close()

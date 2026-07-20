@@ -6,12 +6,49 @@ guarded transitions that log pipeline_events rows.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from . import config
+
+# generic tokens dropped from the short URL slug
+_SLUG_DROP = {
+    "the", "solicitors", "solicitor", "ltd", "llp", "limited", "llc", "inc", "co",
+    "company", "pa", "pllc", "pl", "law", "legal", "and", "realty", "realtor",
+    "realtors", "realestate", "brokerage", "broker", "brokers", "group",
+    "associates", "properties", "property", "estate", "estates",
+}
+
+
+def short_slug(name: str) -> str:
+    """A short, human, URL-safe slug: business name minus generic filler,
+    capped at the first 3 meaningful words. e.g. 'RP Singh Solicitors' -> 'rp-singh'."""
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    parts = [p for p in s.split("-") if p]
+    kept = [p for p in parts if p not in _SLUG_DROP] or parts
+    return "-".join(kept[:3]) or (s or "lead")
+
+
+def ensure_slugs(conn: sqlite3.Connection) -> None:
+    """Guarantee every company has a stable, unique short `slug`. Idempotent."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(companies)")]
+    if "slug" not in cols:
+        conn.execute("ALTER TABLE companies ADD COLUMN slug TEXT")
+    taken = {r[0] for r in conn.execute(
+        "SELECT slug FROM companies WHERE slug IS NOT NULL AND slug <> ''")}
+    for co in conn.execute("SELECT id, name, slug FROM companies").fetchall():
+        if co["slug"]:
+            continue
+        base = short_slug(co["name"])
+        s, i = base, 2
+        while s in taken:
+            s, i = f"{base}-{i}", i + 1
+        taken.add(s)
+        conn.execute("UPDATE companies SET slug=? WHERE id=?", (s, co["id"]))
+    conn.commit()
 
 # --- Schema ----------------------------------------------------------------
 SCHEMA = """
