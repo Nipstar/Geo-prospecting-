@@ -75,7 +75,7 @@ def run_places_search(
     raw = _run_actor(sector, town, max_results, country_code=country_code,
                      location_name=location_name)
     conn = db.get_connection()
-    inserted = skipped_chain = skipped_dupe = 0
+    inserted = skipped_chain = skipped_dupe = backfilled = 0
     try:
         for item in raw:
             mapped = _map_place(item, sector, town)
@@ -84,8 +84,15 @@ def run_places_search(
             if util.is_chain(mapped["name"]):
                 skipped_chain += 1
                 continue
-            if util.find_duplicate(conn, mapped["name"], mapped["town"], mapped["website"]):
+            dup = util.find_duplicate(conn, mapped["name"], mapped["town"], mapped["website"])
+            if dup:
                 skipped_dupe += 1
+                # Back-fill a missing mailing address from Places (e.g. sole
+                # traders with no Companies House registered office).
+                if mapped.get("registered_address") and not (dup["registered_address"] or "").strip():
+                    if not dry_run:
+                        db.update_company(conn, dup["id"], registered_address=mapped["registered_address"])
+                    backfilled += 1
                 continue
             if dry_run:
                 print(f"  + {mapped['name']} ({mapped['town']}) {mapped['website']}")
@@ -100,4 +107,5 @@ def run_places_search(
         "inserted": inserted,
         "skipped_chain": skipped_chain,
         "skipped_dupe": skipped_dupe,
+        "backfilled_address": backfilled,
     }
