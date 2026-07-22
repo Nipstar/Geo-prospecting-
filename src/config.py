@@ -32,6 +32,10 @@ APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
 # Official Google Places API (New) key. When set, ingest uses it instead of the
 # Apify crawler actor — no Apify credit needed for prospecting.
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
+# Apollo.io — US owner-name enrichment (name/title/phone, optional email reveal).
+# Used for the US market only; feeds letters + LinkedIn. Email is stored for the
+# US cold-email channel but never sent to UK leads.
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "")
 COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
 STANNP_API_KEY = os.getenv("STANNP_API_KEY", "")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")

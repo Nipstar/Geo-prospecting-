@@ -107,6 +107,21 @@ def ingest_linkedin(town: str | None, limit: int, dry_run: bool) -> None:
     console.print(res)
 
 
+@ingest.command("apollo")
+@click.option("--state", default="FL", help="US state (e.g. FL, TX). Scopes to US only.")
+@click.option("--town", default=None, help="Only companies in this town.")
+@click.option("--limit", default=25, type=int)
+@click.option("--no-email", is_flag=True, help="Names/phone only; skip email reveal.")
+@click.option("--dry-run", is_flag=True)
+def ingest_apollo(state: str, town: str | None, limit: int, no_email: bool, dry_run: bool) -> None:
+    """US owner enrichment via Apollo (name/title/phone + optional email). US market only."""
+    from .ingest import apollo
+
+    res = apollo.run_apollo_enrich(limit=limit, state=state, town=town,
+                                   reveal_email=not no_email, dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("pitchability")
 @click.option("--limit", default=None, type=int)
 def pitchability_cmd(limit: int | None) -> None:

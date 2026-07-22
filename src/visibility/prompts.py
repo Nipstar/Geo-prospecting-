@@ -45,12 +45,16 @@ SEARCH_NOUNS: list[tuple[str, str, str]] = [
     ("it service", "IT support company", "IT support companies"),
     ("architect", "architect", "architects"),
     ("survey", "surveyor", "surveyors"),
-    # property
+    # property — US real-estate terms first (a US owner says "realtor" /
+    # "real estate agent", never the UK "estate agent"). Order matters:
+    # "real estate agency" must hit these before the UK "estate agen" rule.
+    ("real estate", "real estate agent", "real estate agents"),
+    ("realtor", "real estate agent", "real estate agents"),
+    ("realty", "real estate agent", "real estate agents"),
     ("estate agen", "estate agent", "estate agents"),
     ("letting", "letting agent", "letting agents"),
     ("property manage", "property management company",
      "property management companies"),
-    ("real estate", "estate agent", "estate agents"),
     # health
     ("orthodont", "dentist", "dentists"),
     ("dental", "dentist", "dentists"),
