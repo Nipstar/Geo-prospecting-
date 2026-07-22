@@ -32,6 +32,20 @@ def short_slug(name: str) -> str:
     return "-".join(kept[:3]) or (s or "lead")
 
 
+def ensure_person_contact(conn: sqlite3.Connection) -> None:
+    """Add email/phone columns to people (US enrichment). Idempotent.
+
+    Email is deliberately absent from the base schema (the pipeline is postal +
+    LinkedIn only for the UK); this migration adds it for the US cold-email
+    channel. UK rows are never populated — the enricher is US-scoped.
+    """
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(people)")]
+    for col in ("email", "phone"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE people ADD COLUMN {col} TEXT")
+    conn.commit()
+
+
 def ensure_slugs(conn: sqlite3.Connection) -> None:
     """Guarantee every company has a stable, unique short `slug`. Idempotent."""
     cols = [r[1] for r in conn.execute("PRAGMA table_info(companies)")]

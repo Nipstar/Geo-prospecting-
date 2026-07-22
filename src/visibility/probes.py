@@ -96,8 +96,8 @@ def prefetch_ai_overviews(conn, queries: list[str]) -> None:
     """Warm the probe cache for all AIO queries in ONE Apify run (one setup
     fee instead of five). Call before the per-query probe loop; run_probe then
     hits cache. Silently no-ops without APIFY_TOKEN or if all cached."""
-    if not config.APIFY_TOKEN:
-        return
+    if config.AIO_PROVIDER != "apify" or not config.APIFY_TOKEN:
+        return  # serpapi mode: per-query path handles it, no batch prefetch
     engine = config.AI_OVERVIEW_ENGINE
     todo = [q for q in queries if _cached(conn, q, engine) is None]
     if not todo:
@@ -119,7 +119,7 @@ def probe_ai_overview(conn, query: str) -> dict:
         answered = bool(cached) and not cached.startswith("ERROR")
         return {"text": "" if not answered else cached, "cost_usd": 0.0, "answered": answered}
     text = ""
-    if config.APIFY_TOKEN:
+    if config.AIO_PROVIDER == "apify" and config.APIFY_TOKEN:
         results = _apify_aio_fetch([query])
         if results is not None:
             text = results.get(query, "NO_AI_OVERVIEW")

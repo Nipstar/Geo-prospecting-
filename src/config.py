@@ -29,6 +29,13 @@ for _d in (DATA_DIR, REPORTS_DIR, QUEUE_DIR, LETTERS_DIR):
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
+# Official Google Places API (New) key. When set, ingest uses it instead of the
+# Apify crawler actor — no Apify credit needed for prospecting.
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
+# Apollo.io — US owner-name enrichment (name/title/phone, optional email reveal).
+# Used for the US market only; feeds letters + LinkedIn. Email is stored for the
+# US cold-email channel but never sent to UK leads.
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "")
 COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
 STANNP_API_KEY = os.getenv("STANNP_API_KEY", "")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")
@@ -112,6 +119,11 @@ COST_PER_PROBE = {
 # page-token generation automatically — the thing SerpApi makes you do by
 # hand). Actor id uses ~ separator per Apify API convention.
 APIFY_AIO_ACTOR = os.getenv("APIFY_AIO_ACTOR", "johnvc~google-ai-overview-api")
+
+# AI Overview probe provider: "serpapi" (uses SERPAPI_KEY, no Apify credit) or
+# "apify" (johnvc actor, better deferred-token handling but needs Apify credit).
+# Default serpapi so checks never depend on Apify balance.
+AIO_PROVIDER = os.getenv("AIO_PROVIDER", "serpapi").strip().lower()
 
 # --- LinkedIn cadence and caps ---------------------------------------------
 DAILY_CONNECTION_CAP = 15           # new connection notes per day (human-scale)

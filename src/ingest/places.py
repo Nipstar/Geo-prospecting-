@@ -8,10 +8,70 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+import requests
+
 from .. import config, db
 from . import util
 
 ACTOR_ID = "compass/crawler-google-places"
+
+# Official Google Places API (New) — Text Search. Returns up to 20 places per
+# page, paginated via nextPageToken. No Apify credit needed.
+_PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
+_FIELD_MASK = (
+    "places.displayName,places.formattedAddress,places.websiteUri,"
+    "places.nationalPhoneNumber,places.rating,places.userRatingCount,"
+    "places.businessStatus,places.addressComponents,nextPageToken"
+)
+
+
+def _addr_component(place: dict[str, Any], comp_type: str) -> str:
+    for comp in place.get("addressComponents") or []:
+        if comp_type in (comp.get("types") or []):
+            return comp.get("longText") or comp.get("shortText") or ""
+    return ""
+
+
+def _run_places_api(sector: str, town: str, max_results: int,
+                    country_code: str) -> list[dict[str, Any]]:
+    """Official Places API (New) Text Search. Returns actor-shaped dicts so
+    _map_place works unchanged. Skips non-operational places."""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": config.GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": _FIELD_MASK,
+    }
+    body: dict[str, Any] = {
+        "textQuery": f"{sector} in {town}",
+        "regionCode": country_code.upper(),
+        "pageSize": 20,
+    }
+    items: list[dict[str, Any]] = []
+    for _ in range(5):  # up to 5 pages (100), capped by max_results below
+        resp = requests.post(_PLACES_URL, headers=headers, json=body, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        for p in data.get("places") or []:
+            if (p.get("businessStatus") or "OPERATIONAL") != "OPERATIONAL":
+                continue
+            items.append({
+                "title": (p.get("displayName") or {}).get("text", ""),
+                "website": p.get("websiteUri") or "",
+                "city": _addr_component(p, "locality")
+                        or _addr_component(p, "postal_town"),
+                "state": _addr_component(p, "administrative_area_level_1"),
+                "address": p.get("formattedAddress") or "",
+                "phone": p.get("nationalPhoneNumber") or "",
+                "totalScore": p.get("rating"),
+                "reviewsCount": p.get("userRatingCount"),
+            })
+            if len(items) >= max_results:
+                return items
+        token = data.get("nextPageToken")
+        if not token:
+            break
+        body["pageToken"] = token
+    return items
 
 
 def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb",
@@ -72,8 +132,13 @@ def run_places_search(
     UK behaviour is unchanged when omitted.
     """
     country_code, location_name = config.country_geo(country)
-    raw = _run_actor(sector, town, max_results, country_code=country_code,
-                     location_name=location_name)
+    # Prefer the official Places API when a key is set (no Apify credit); else
+    # fall back to the Apify crawler actor.
+    if config.GOOGLE_PLACES_API_KEY:
+        raw = _run_places_api(sector, town, max_results, country_code)
+    else:
+        raw = _run_actor(sector, town, max_results, country_code=country_code,
+                         location_name=location_name)
     conn = db.get_connection()
     inserted = skipped_chain = skipped_dupe = backfilled = 0
     try:

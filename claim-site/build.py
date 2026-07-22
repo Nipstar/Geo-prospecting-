@@ -26,6 +26,8 @@ import re as _re  # noqa: E402
 from jinja2 import Template  # noqa: E402
 from markupsafe import Markup  # noqa: E402
 from src import db  # noqa: E402
+from src.visibility import prompts  # noqa: E402
+from src.config import FREE_CHECK_QUERIES  # noqa: E402
 from src.visibility.report import slugify  # noqa: E402
 
 ENGINES = [
@@ -64,20 +66,22 @@ def _highlight(text: str, firm: str, competitors: list[str]) -> Markup:
     return Markup(esc)
 
 
-def _quotes(conn, limit=3):
-    rows = conn.execute(
-        "select query, engine, response_text from probe_cache order by id"
-    ).fetchall()
-    out, seen = [], set()
-    for r in rows:
-        q = r["query"]
-        if q in seen or not r["response_text"]:
+def _quotes(conn, queries, limit=3):
+    """Self-verify quotes for THIS company only — its own buyer-intent queries,
+    looked up in the probe cache. Never the global first-3 (which were UK)."""
+    out = []
+    for q in queries:
+        row = conn.execute(
+            "select query, engine, response_text from probe_cache "
+            "where query=? and response_text is not null and response_text<>'' "
+            "order by id desc limit 1", (q,),
+        ).fetchone()
+        if not row:
             continue
-        seen.add(q)
         out.append({
-            "query": q,
-            "engine": r["engine"],
-            "text": textwrap.shorten(r["response_text"].replace("\n", " "), 260),
+            "query": row["query"],
+            "engine": row["engine"],
+            "text": textwrap.shorten(row["response_text"].replace("\n", " "), 260),
         })
         if len(out) >= limit:
             break
@@ -105,13 +109,13 @@ def build(status: str | None, limit: int) -> list[str]:
         (*params, limit),
     ).fetchall()
 
-    quotes = _quotes(conn)
     made = []
     for co in rows:
         v = conn.execute(
             "select * from visibility_checks where company_id=? order by id desc limit 1",
             (co["id"],),
         ).fetchone()
+        quotes = _quotes(conn, prompts.build_queries(co, limit=FREE_CHECK_QUERIES))
         engines = [{"label": lbl, "score": int(v[col] or 0), "appears": (v[col] or 0) > 0}
                    for col, lbl in ENGINES]
         sector = (co["sector"] or "").lower()
@@ -140,10 +144,6 @@ def build(status: str | None, limit: int) -> list[str]:
 
     # --- full report pages (/report/<slug>) ---
     report_tpl = Template((HERE / "report_template.html").read_text())
-    probe_rows = conn.execute("select query, engine, response_text from probe_cache order by id").fetchall()
-    by_query: dict[str, dict] = {}
-    for r in probe_rows:
-        by_query.setdefault(r["query"], {})[r["engine"]] = r["response_text"] or ""
     (dist / "report").mkdir(exist_ok=True)
     for co in rows:
         v = conn.execute("select * from visibility_checks where company_id=? order by id desc limit 1",
@@ -151,6 +151,14 @@ def build(status: str | None, limit: int) -> list[str]:
         comp_str = v["competitor_named"] or ""
         comp_list = [c.strip() for c in comp_str.split(",") if c.strip()]
         core = _core_name(co["name"]).lower()
+        # THIS company's queries only — look each up in the probe cache.
+        by_query: dict[str, dict] = {}
+        for q in prompts.build_queries(co):
+            crows = conn.execute(
+                "select engine, response_text from probe_cache where query=?", (q,)
+            ).fetchall()
+            if crows:
+                by_query[q] = {cr["engine"]: cr["response_text"] or "" for cr in crows}
         questions = []
         for q, engs in by_query.items():
             elist = []
