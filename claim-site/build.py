@@ -125,14 +125,31 @@ def build(status: str | None, limit: int) -> list[str]:
         director = director["name"] if director else ""
         competitors = v["competitor_named"] or ""
         top_competitor = competitors.split(",")[0].strip() if competitors else ""
+        sw = SECTOR_WORD.get(sector, sector or "firm")
+        town_d = co["town"] or "your area"
+        mentioned = v["platforms_mentioned"] or 0
+        # Stakes line — frames the score as lost enquiries (funnel: shows WHAT, not HOW).
+        if mentioned == 0:
+            stakes = (f"When someone in {town_d} asks ChatGPT, Gemini or Perplexity for a "
+                      f"{sw}, {co['name']} does not come up at all.")
+        else:
+            stakes = (f"{co['name']} shows up on {mentioned} of {v['platforms_tested']} AI "
+                      f"engines — but that still leaves gaps a competitor is filling.")
+        if top_competitor:
+            stakes += f" {top_competitor} appears where you don't, and those enquiries go to them."
+        # Gap checklist — WHAT's wrong (absent engines + competitor), never HOW to fix.
+        gaps = [f"Invisible on {e['label']} when buyers ask for a {sw}"
+                for e in engines if not e["appears"]][:3]
+        if top_competitor:
+            gaps.append(f"{top_competitor} is the firm AI names instead of you")
         html = tpl.render(
-            firm=co["name"], town=co["town"] or "your area",
+            firm=co["name"], town=town_d,
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
             rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
             phone=co["phone"] or "", director=director,
             score=int(round(v["composite_score"])),
-            mentioned=v["platforms_mentioned"], tested=v["platforms_tested"],
-            sector_word=SECTOR_WORD.get(sector, sector or "firm"),
+            mentioned=mentioned, tested=v["platforms_tested"],
+            sector_word=sw, stakes=stakes, gaps=gaps,
             engines=engines, competitors=competitors, top_competitor=top_competitor,
             quotes=quotes, slug=(co["slug"] or slugify(co["name"])), cal_link=CAL_LINK,
         )

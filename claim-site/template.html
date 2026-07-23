@@ -40,6 +40,12 @@
   .appears{color:var(--cyan);font-weight:700}
   blockquote{border-left:3px solid var(--coral);padding:8px 14px;margin:12px 0;background:#242220;border-radius:0 6px 6px 0;font-size:15px;color:#d8d4cc}
   blockquote .q{display:block;margin-bottom:4px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:.06em}
+  .stakes{margin-top:18px;padding:14px 16px;border-left:3px solid var(--coral);background:#242220;border-radius:0 8px 8px 0;color:var(--cream);font-size:16px;line-height:1.5}
+  .nudge{margin-top:10px;font-size:13px;color:var(--muted)}
+  ul.gaps{list-style:none;padding:0;margin:6px 0 0}
+  ul.gaps li{padding:9px 0 9px 30px;position:relative;color:var(--body);font-size:15px;border-bottom:1px solid var(--line)}
+  ul.gaps li:last-child{border-bottom:none}
+  ul.gaps li:before{content:"✕";position:absolute;left:4px;top:9px;color:var(--coral);font-weight:800}
   .challenge{border:1px solid var(--coral);background:linear-gradient(180deg,#241a16,#1f1512)}
   .challenge .try{display:inline-block;background:var(--coral);color:#1a1a1a;padding:9px 13px;margin-top:10px;font-weight:800;border-radius:6px}
   form{display:grid;gap:10px;margin-top:14px}
@@ -76,6 +82,8 @@
         <p class="sub" style="margin-top:8px">How visible {{ firm }} is when people ask AI tools for a {{ sector_word }} in {{ town }}.</p>
       </div>
     </div>
+    {% if stakes %}<div class="stakes">{{ stakes }}</div>{% endif %}
+    <p class="nudge">More buyers now start their search inside ChatGPT, Gemini and Perplexity — not Google. If you're not in the answer, you're not on the shortlist.</p>
   </div>
 
   <div class="card">
@@ -91,6 +99,16 @@
     <p style="margin-top:16px;color:var(--body)"><strong style="color:var(--cream)">Who the AI recommends instead:</strong> {{ competitors }}</p>
     {% endif %}
   </div>
+
+  {% if gaps %}
+  <div class="card">
+    <h2>Where you're <span style="color:var(--coral)">losing</span> the enquiry</h2>
+    <ul class="gaps">
+      {% for g in gaps %}<li>{{ g }}</li>{% endfor %}
+    </ul>
+    <p class="sub" style="margin-top:12px">Every question we asked, what each AI said back, and how to close each gap — that's what we walk through on the call.</p>
+  </div>
+  {% endif %}
 
   <div class="card">
     <h2>What the AI <span style="color:var(--coral)">actually</span> said</h2>
