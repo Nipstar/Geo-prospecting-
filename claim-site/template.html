@@ -56,6 +56,19 @@
   .qbar.hit{background:rgba(120,200,120,.12);color:#8fd48f;border-left:3px solid #6fbf6f}
   .punch{margin-top:16px;font-size:17px;font-weight:600;color:var(--cream);line-height:1.5}
   .punch b{color:var(--coral)}
+  .heroband{background:linear-gradient(180deg,#221f1d,#1b1917)}
+  .hb-live{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono';font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:14px}
+  .hb-live .dot{width:9px;height:9px;border-radius:50%;background:#37d67a;box-shadow:0 0 0 0 rgba(55,214,122,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(55,214,122,.5)}70%{box-shadow:0 0 0 10px rgba(55,214,122,0)}100%{box-shadow:0 0 0 0 rgba(55,214,122,0)}}
+  .hb-row{display:flex;gap:12px;flex-wrap:wrap}
+  .hb-col{flex:1;min-width:150px;padding:16px;border-radius:10px}
+  .hb-col.win{background:rgba(120,200,120,.10);border:1px solid rgba(120,200,120,.3)}
+  .hb-col.lose{background:rgba(255,95,63,.12);border:1px solid rgba(255,95,63,.4)}
+  .hb-k{font-size:13px;color:var(--muted);margin-bottom:4px}
+  .hb-col.win .hb-v{color:#8fd48f;font-weight:700;font-size:18px}
+  .hb-col.lose .hb-v{color:#ff8467;font-weight:700;font-size:18px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+  .chip{background:rgba(255,95,63,.14);color:#ffb9a8;border:1px solid rgba(255,95,63,.35);padding:5px 11px;border-radius:20px;font-size:13px;font-weight:600}
   .challenge{border:1px solid var(--coral);background:linear-gradient(180deg,#241a16,#1f1512)}
   .challenge .try{display:inline-block;background:var(--coral);color:#1a1a1a;padding:9px 13px;margin-top:10px;font-weight:800;border-radius:6px}
   form{display:grid;gap:10px;margin-top:14px}
@@ -96,6 +109,16 @@
     <p class="nudge">More buyers now start their search inside ChatGPT, Gemini and Perplexity — not Google. If you're not in the answer, you're not on the shortlist.</p>
   </div>
 
+  {% if preview %}
+  <div class="card heroband">
+    <div class="hb-live"><span class="dot"></span> Someone in {{ town }} is asking AI for a {{ sector_word }} right now</div>
+    <div class="hb-row">
+      <div class="hb-col win"><div class="hb-k">Your competitors</div><div class="hb-v">✓ named by AI</div></div>
+      <div class="hb-col lose"><div class="hb-k">{{ firm }}</div><div class="hb-v">✗ not in the answer</div></div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card">
     <h2>Engine <span style="color:var(--coral)">by</span> engine</h2>
     <table class="mono">
@@ -124,6 +147,10 @@
     <h2>What buyers <span style="color:var(--coral)">actually see</span></h2>
     {% if rivals_named %}
     <p class="punch">Ask AI for a {{ sector_word }} in {{ town }} and it recommends <b>a competitor by name</b> — not {{ firm }}. Here's a real answer from this week:</p>
+    {% endif %}
+    {% if preview and rival_chips %}
+    <div class="chips">{% for c in rival_chips %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+    <p class="sub" style="margin-bottom:10px">Names AI is putting in front of buyers instead of you.</p>
     {% endif %}
     {% for q in quotes %}
     <blockquote>

@@ -66,6 +66,50 @@ def _highlight(text: str, firm: str, competitors: list[str]) -> Markup:
     return Markup(esc)
 
 
+# Directories / portals / awards / generic words that look like names but aren't
+# a local competitor. Kept out of the rival chips.
+_CHIP_STOP = {
+    "In", "The", "However", "County", "Broker", "Google", "Best", "Top", "Real",
+    "Estate", "Agent", "Agents", "AI", "These", "Their", "This", "That", "Group",
+    "Owner", "Recognized", "A", "An", "Zillow", "Realtor", "RealTrends", "HomeLight",
+    "Redfin", "Trulia", "Yelp", "Facebook", "Forbes", "Verified", "Award", "Awards",
+    "Magazine", "Homes", "Property", "Properties", "Realty", "MLS", "Team", "Teams",
+    "Note", "Choosing", "Some", "Several", "Many", "For", "When", "If", "You", "Your",
+    # phrase-fragment words that are never part of a firm/agent name
+    "According", "Context", "Important", "So", "Who", "What", "Here", "Overall",
+    "Based", "Key", "Takeaway", "Takeaways", "Leader", "Volume", "High", "Consider",
+    "Depends", "Overview", "Summary", "Also", "While", "Because", "They", "It",
+    "Its", "Known", "Highly", "Rated", "Reviews", "Review", "Star", "Stars", "With",
+    "And", "Or", "But", "As", "Of", "To", "Is", "Are", "Was", "Well", "Very",
+    "Quick", "Question", "Questions", "Wesley", "Chapel", "Palm", "Harbor",
+    "Brandon", "Riverview", "Lutz", "Lakes", "Miami", "Northdale", "Sarasota",
+    "Bradenton", "Dunedin", "Largo", "Seminole", "Jacksonville", "Ocala",
+}
+_CHIP_RE = __import__("re").compile(r"[A-Z][a-zA-Z&'.\-]+(?:\s+[A-Z][a-zA-Z&'.\-]+){1,3}")
+
+
+def _rival_chips(text, firm, town, limit=5):
+    """Firm/agent names AI surfaced, pulled from the answer text. Tightened to
+    skip directories/awards/geo/generic words. Best-effort; for the intrigue row."""
+    core = _core_name(firm).lower()
+    tl = (town or "").lower()
+    chips = []
+    for m in _CHIP_RE.findall(text or ""):
+        c = m.strip(" .,-")
+        low = c.lower()
+        words = c.split()
+        if len(c) < 6 or core and core in low or tl and tl in low:
+            continue
+        if any(w in _CHIP_STOP for w in words):
+            continue
+        if any(w.lower() in ("florida", "fl", "tampa", "petersburg", "clearwater",
+                             "pinellas", "gulf", "coast", "bay") for w in words):
+            continue
+        if c not in chips:
+            chips.append(c)
+    return chips[:limit]
+
+
 def _quotes(conn, queries, firm="", comps=None, limit=3):
     """Self-verify quotes for THIS company only. Competitor names are
     highlighted and each quote is flagged with whether the firm was named, so
@@ -97,6 +141,7 @@ def _quotes(conn, queries, firm="", comps=None, limit=3):
             "engine": ENGINE_LABEL.get(engine, engine),
             "text": _highlight(short, firm, comps),
             "appears": appears,
+            "raw": raw,
         })
         if len(out) >= limit:
             break
@@ -144,6 +189,8 @@ def build(status: str | None, limit: int) -> list[str]:
                          firm=co["name"], comps=comp_list)
         rivals_named = sum(1 for q in quotes if not q["appears"])
         sw = SECTOR_WORD.get(sector, sector or "firm")
+        rival_chips = _rival_chips(" ".join(q["raw"] for q in quotes),
+                                   co["name"], co["town"] or "")
         town_d = co["town"] or "your area"
         mentioned = v["platforms_mentioned"] or 0
         # Stakes line — frames the score as lost enquiries (funnel: shows WHAT, not HOW).
@@ -168,6 +215,7 @@ def build(status: str | None, limit: int) -> list[str]:
             score=int(round(v["composite_score"])),
             mentioned=mentioned, tested=v["platforms_tested"],
             sector_word=sw, stakes=stakes, gaps=gaps, rivals_named=rivals_named,
+            preview=True, rival_chips=rival_chips,
             engines=engines, competitors=competitors, top_competitor=top_competitor,
             quotes=quotes, slug=(co["slug"] or slugify(co["name"])), cal_link=CAL_LINK,
         )
