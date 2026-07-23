@@ -66,22 +66,37 @@ def _highlight(text: str, firm: str, competitors: list[str]) -> Markup:
     return Markup(esc)
 
 
-def _quotes(conn, queries, limit=3):
-    """Self-verify quotes for THIS company only — its own buyer-intent queries,
-    looked up in the probe cache. Never the global first-3 (which were UK)."""
+def _quotes(conn, queries, firm="", comps=None, limit=3):
+    """Self-verify quotes for THIS company only. Competitor names are
+    highlighted and each quote is flagged with whether the firm was named, so
+    the 'AI recommended them, not you' gut-punch is visible, not buried."""
+    comps = comps or []
+    core = _core_name(firm).lower()
     out = []
     for q in queries:
-        row = conn.execute(
-            "select query, engine, response_text from probe_cache "
-            "where query=? and response_text is not null and response_text<>'' "
-            "order by id desc limit 1", (q,),
-        ).fetchone()
-        if not row:
+        rows = conn.execute(
+            "select engine, response_text from probe_cache "
+            "where query=? and response_text is not null and response_text<>''", (q,),
+        ).fetchall()
+        # Pick the most substantive answer for this query: a real AI answer that
+        # names firms, not an empty NO_AI_OVERVIEW placeholder. Longest wins.
+        best = None
+        for r in rows:
+            txt = (r["response_text"] or "").strip()
+            if not txt or txt.startswith("NO_AI_OVERVIEW"):
+                continue
+            if best is None or len(txt) > len(best[1]):
+                best = (r["engine"], txt)
+        if best is None:
             continue
+        engine, raw = best[0], best[1].replace("\n", " ")
+        appears = bool(core) and core in raw.lower()
+        short = textwrap.shorten(raw, 480)
         out.append({
-            "query": row["query"],
-            "engine": row["engine"],
-            "text": textwrap.shorten(row["response_text"].replace("\n", " "), 260),
+            "query": q,
+            "engine": ENGINE_LABEL.get(engine, engine),
+            "text": _highlight(short, firm, comps),
+            "appears": appears,
         })
         if len(out) >= limit:
             break
@@ -115,7 +130,6 @@ def build(status: str | None, limit: int) -> list[str]:
             "select * from visibility_checks where company_id=? order by id desc limit 1",
             (co["id"],),
         ).fetchone()
-        quotes = _quotes(conn, prompts.build_queries(co, limit=FREE_CHECK_QUERIES))
         engines = [{"label": lbl, "score": int(v[col] or 0), "appears": (v[col] or 0) > 0}
                    for col, lbl in ENGINES]
         sector = (co["sector"] or "").lower()
@@ -124,7 +138,11 @@ def build(status: str | None, limit: int) -> list[str]:
             "and name is not null order by id limit 1", (co["id"],)).fetchone()
         director = director["name"] if director else ""
         competitors = v["competitor_named"] or ""
-        top_competitor = competitors.split(",")[0].strip() if competitors else ""
+        comp_list = [c.strip() for c in competitors.split(",") if c.strip()]
+        top_competitor = comp_list[0] if comp_list else ""
+        quotes = _quotes(conn, prompts.build_queries(co, limit=FREE_CHECK_QUERIES),
+                         firm=co["name"], comps=comp_list)
+        rivals_named = sum(1 for q in quotes if not q["appears"])
         sw = SECTOR_WORD.get(sector, sector or "firm")
         town_d = co["town"] or "your area"
         mentioned = v["platforms_mentioned"] or 0
@@ -149,7 +167,7 @@ def build(status: str | None, limit: int) -> list[str]:
             phone=co["phone"] or "", director=director,
             score=int(round(v["composite_score"])),
             mentioned=mentioned, tested=v["platforms_tested"],
-            sector_word=sw, stakes=stakes, gaps=gaps,
+            sector_word=sw, stakes=stakes, gaps=gaps, rivals_named=rivals_named,
             engines=engines, competitors=competitors, top_competitor=top_competitor,
             quotes=quotes, slug=(co["slug"] or slugify(co["name"])), cal_link=CAL_LINK,
         )
