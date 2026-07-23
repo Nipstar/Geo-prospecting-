@@ -107,6 +107,23 @@ def _delivery_address(company) -> str:
     return company["registered_address"] or ""
 
 
+_US_TOWNS = {"tampa", "brandon", "palm harbor", "st. petersburg", "clearwater",
+             "wesley chapel", "lutz", "riverview", "land o' lakes", "miami",
+             "greater northdale", "jacksonville"}
+
+
+def _market(company) -> str:
+    """US letters drop the UK Andover return address + reframe the intro so a
+    US recipient doesn't wonder why UK mail landed. Everything else = UK."""
+    if (company["county"] or "").strip().lower() == "florida":
+        return "US"
+    try:
+        town = (company["town"] or "").strip().lower()
+    except (IndexError, KeyError):
+        town = ""
+    return "US" if town in _US_TOWNS else "UK"
+
+
 def build_letter(conn, company, letter_no: int = 1) -> dict:
     """Generate a letter PDF + letters row. letter_no 2 = shorter follow-up."""
     check = db.latest_check(conn, company["id"])
@@ -146,6 +163,7 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
         sector_word=sector_word,
         claim_url=claim_url,
         qr_data_uri=_qr_data_uri(claim_url),
+        market=_market(company),
     )
 
     suffix = "-followup" if letter_no == 2 else ""

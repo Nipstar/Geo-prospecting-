@@ -36,8 +36,12 @@
       <span class="wm">Antek&nbsp;Automation</span>
     </div>
     <div class="sender">
-      {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
-      {{ tokens.phone }}
+      {% if market == 'US' %}
+        {{ tokens.website }}
+      {% else %}
+        {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
+        {{ tokens.phone }}
+      {% endif %}
     </div>
   </div>
 
@@ -54,12 +58,23 @@
 
     <p class="finding">{{ headline }}</p>
 
+    {% if market == 'US' %}
+    <p>I run Antek Automation, an AI automation company &mdash; I work inside tools
+       like ChatGPT, Gemini and Perplexity every day. I have been checking how
+       {{ company.town }} {{ sector_word }} show up when buyers ask AI for a
+       recommendation, because that is how more and more people now start their
+       search.</p>
+
+    <p>Roughly 85% of small firms have zero measurable AI visibility. Most have no
+       idea, because it does not show up in the places they usually check.</p>
+    {% else %}
     <p>I run Antek Automation in Andover. I have been checking how {{ company.town }}
        {{ sector_word }} show up when people ask AI tools like ChatGPT for a
        recommendation. That is how a lot of your customers now start looking.</p>
 
     <p>Roughly 85% of UK SMEs have zero measurable AI visibility. Most have no
        idea, because it does not show up in the places they usually check.</p>
+    {% endif %}
 
     <p>I put together a short AI Visibility Check report for {{ company.name }}. It
        shows exactly where you appear across ChatGPT, Perplexity and Google's AI
@@ -84,7 +99,11 @@
   </div>
 
   <div class="foot">
+    {% if market == 'US' %}
+    {{ tokens.company_name }} · {{ tokens.website }}
+    {% else %}
     {{ tokens.company_name }} · {{ tokens.address_lines|join(', ') }} · {{ tokens.phone }} · {{ tokens.website }}
+    {% endif %}
   </div>
 </body>
 </html>
