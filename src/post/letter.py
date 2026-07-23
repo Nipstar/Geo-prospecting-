@@ -84,8 +84,22 @@ def _opener(company, check, sector_word: str) -> str:
     else:
         line = (f"When people in {town} ask an AI tool like ChatGPT for a {sector_word}, "
                 f"{company['name']} appears in only {mentioned} of the {tested} engines I checked")
-    line += f", while {comp} appears in more." if comp else "."
+    line += f", while {comp} appears in more of them." if comp else "."
     return line
+
+
+def _pluralise(word: str) -> str:
+    """Plural of a service noun for 'how <town> <nouns> show up'. Idempotent:
+    already-plural nouns (solicitors) are left alone; 'real estate agency' ->
+    'real estate agencies'."""
+    w = (word or "").strip()
+    if not w or w.lower().endswith("s"):
+        return w
+    if w.lower().endswith("y") and w[-2:-1].lower() not in "aeiou":
+        return w[:-1] + "ies"
+    if w.lower().endswith(("ch", "sh", "x", "z")):
+        return w + "es"
+    return w + "s"
 
 
 def _addressee(conn, company) -> tuple[str, str, int | None]:
@@ -161,6 +175,7 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
         date_str=date.today().strftime("%d %B %Y"),
         headline=_opener(company, check, sector_word),
         sector_word=sector_word,
+        sector_word_plural=_pluralise(sector_word),
         claim_url=claim_url,
         qr_data_uri=_qr_data_uri(claim_url),
         market=_market(company),
