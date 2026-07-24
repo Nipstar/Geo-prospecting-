@@ -19,6 +19,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "gender-guesser>=0.4.0",
+    "antek-geo-core @ git+https://github.com/Nipstar/Geo-core@v0.1.0",
 ]
 
 [project.scripts]
