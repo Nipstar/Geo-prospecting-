@@ -56,6 +56,12 @@ POSTGRID_FROM = {
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "")
 CLAIM_BASE_URL = os.getenv("CLAIM_BASE_URL", "https://antek.link").rstrip("/")
+# PostGrid portal template IDs — created via scripts/create_postgrid_templates.py
+# and editable visually at https://app.postgrid.com/templates.
+# When set, postgrid-send uses the template (no inline HTML) so PostGrid renders
+# from the dashboard-editable version.  Leave blank to fall back to inline HTML.
+POSTGRID_TEMPLATE_UK = os.getenv("POSTGRID_TEMPLATE_UK", "")
+POSTGRID_TEMPLATE_US = os.getenv("POSTGRID_TEMPLATE_US", "")
 
 # --- Model routing ---------------------------------------------------------
 # Every llm.complete(task, ...) call resolves its model here. Swap models in

@@ -48,6 +48,55 @@ import gender_guesser.detector as _gender_mod
 
 _DETECTOR = _gender_mod.Detector(case_sensitive=False)
 
+# Words that indicate a business descriptor rather than a surname.
+# Used to detect "Jose Fuentes Real Estate Broker" → "Jose Fuentes".
+_BUSINESS_WORDS = frozenset({
+    # Business descriptors
+    "real", "realty", "realtors", "estate", "estates",
+    "property", "properties", "homes", "home", "house", "housing",
+    "broker", "brokers", "brokerage",
+    "group", "team", "associates", "associate", "partners", "partnership",
+    "services", "solutions", "management", "consulting", "advisors",
+    "agency", "agencies", "international", "national", "global",
+    "residential", "commercial", "investment", "investments",
+    "llc", "llp", "ltd", "inc", "corp", "co",
+    # Location / place words (to prevent "Victoria Station" → false positive)
+    "station", "plaza", "bridge", "park", "street", "lane", "avenue",
+    "road", "square", "bay", "hill", "lake", "river", "valley",
+    "manor", "hall", "court", "view", "heights", "ridge", "grove",
+    "point", "port", "harbor", "harbour", "beach", "shore", "cliff",
+    "gate", "tower", "place", "center", "centre", "village", "town",
+})
+
+
+def _extract_name_from_company(company_name: str) -> str | None:
+    """Heuristic: if a company name begins with FirstName Surname <business word>,
+    return 'FirstName Surname'.  Fires only when no person is found in the DB.
+
+    Examples:
+      "Jose Fuentes Real Estate Broker…" → "Jose Fuentes"
+      "Sarah Johnson Realty LLC"          → "Sarah Johnson"
+      "Hampton Real Estate Group"         → None  (Hampton has no detectable gender)
+      "Victoria Station Properties"       → None  (Station is not a surname here
+                                                    because 3rd token is in _BUSINESS_WORDS
+                                                    BUT 2nd token also matches → depends)
+    """
+    tokens = [t.rstrip(",.;:'\"") for t in company_name.split() if t]
+    if len(tokens) < 3:
+        return None
+    first, second, third = tokens[0], tokens[1], tokens[2]
+    # First token must look like a human first name
+    g = _DETECTOR.get_gender(first)
+    if g not in ("male", "female", "mostly_male", "mostly_female"):
+        return None
+    # Second token must NOT be a business keyword (so it's a surname, not a descriptor)
+    if second.lower() in _BUSINESS_WORDS:
+        return None
+    # Third token (or beyond) should be a business word → confirms this is a named firm
+    if third.lower() not in _BUSINESS_WORDS:
+        return None
+    return f"{first} {second}"
+
 
 def _salutation(full_name: str) -> str:
     """Grammatical greeting: 'Mr Smith' / 'Ms Jones', or 'Sir or Madam' when the
@@ -103,7 +152,14 @@ def _pluralise(word: str) -> str:
 
 
 def _addressee(conn, company) -> tuple[str, str, int | None]:
-    """Return (addressee_line, salutation, person_id). Directors first."""
+    """Return (addressee_line, salutation, person_id). Directors first.
+
+    Fallback chain:
+      1. Official DB record (Companies House officer, Sunbiz, LinkedIn)
+      2. Any person record in the DB
+      3. Heuristic: name embedded in company name ("Jose Fuentes Real Estate…")
+      4. "The Owner" / "Sir or Madam"
+    """
     people = db.get_people_for_company(conn, company["id"])
     _official = {"companies_house_officer", "sunbiz_officer", "linkedin"}
     directors = [p for p in people if p["person_source"] in _official and p["name"]]
@@ -111,6 +167,10 @@ def _addressee(conn, company) -> tuple[str, str, int | None]:
     if named:
         p = named[0]
         return p["name"], _salutation(p["name"]), p["id"]
+    # Heuristic: extract person name from company name (e.g. named real-estate firms)
+    extracted = _extract_name_from_company(company["name"] or "")
+    if extracted:
+        return extracted, _salutation(extracted), None
     return "The Owner", "Sir or Madam", None
 
 
@@ -188,6 +248,67 @@ def render_letter_html(conn, company, letter_no: int = 1,
             "addressee": addressee, "salutation": salutation, "slug": slug,
             "market": _market(company)}
     return html, meta
+
+
+def build_merge_variables(conn, company) -> tuple[dict, dict]:
+    """Build the PostGrid ``mergeVariables`` dict for a company letter.
+
+    Returns ``(merge_vars, meta)`` where:
+      - ``merge_vars``   goes to ``create_letter(merge=merge_vars)``
+      - ``meta``         has the same keys as ``render_letter_html`` (for DB write)
+
+    This is the PostGrid-template path: the HTML lives in the portal and PostGrid
+    substitutes ``{{salutation}}``, ``{{headline}}``, etc.  No local Jinja2 render.
+    """
+    check = db.latest_check(conn, company["id"])
+    if check is None:
+        raise ValueError(
+            f"No visibility check for {company['name']}. Run `cli check mini` first."
+        )
+    addressee, salutation, person_id = _addressee(conn, company)
+    code = _claim_code(conn)
+    import os
+    claim_site = os.getenv("CLAIM_SITE_URL", "https://antek-claim.pages.dev").rstrip("/")
+    slug = (company["slug"] if "slug" in company.keys() and company["slug"] else slugify(company["name"]))
+    claim_url = f"{claim_site}/{slug}"
+    sector_word = None
+    try:
+        sector_word = company["primary_service"]
+    except (IndexError, KeyError):
+        pass
+    sector_word = sector_word or company["sector"] or "businesses"
+
+    market = _market(company)
+    town = (company["town"] or "your area")
+
+    # addresseeName: shown in the recipient address block on the letter
+    #   → named person: their full name (e.g. "Mr John Smith")
+    #   → unknown:      "The Owner"
+    # salutation: used in "Dear X," — never "Dear The Owner,"
+    #   → named with detectable gender: "Mr Smith" / "Ms Jones"
+    #   → unknown:                      "Sir or Madam"
+    if addressee and addressee != "The Owner":
+        addressee_name = addressee          # full name already formatted
+        dear = _salutation(addressee)       # "Mr Smith" / "Ms Jones" / "Sir or Madam"
+    else:
+        addressee_name = "The Owner"
+        dear = "Sir or Madam"
+
+    merge = {
+        "addresseeName": addressee_name,
+        "salutation": dear,
+        "headline": _opener(company, check, sector_word),
+        "town": town,
+        "sector": _pluralise(sector_word),  # always plural — "how X solicitors show up"
+        "dateStr": date.today().strftime("%d %B %Y"),
+        "claimUrl": claim_url,
+    }
+    meta = {
+        "person_id": person_id, "claim_code": code, "claim_url": claim_url,
+        "addressee": addressee_name, "salutation": dear, "slug": slug,
+        "market": market,
+    }
+    return merge, meta
 
 
 def build_letter(conn, company, letter_no: int = 1) -> dict:

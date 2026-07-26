@@ -131,5 +131,27 @@ def cancel_letter(order_id: str) -> dict[str, Any]:
     return _check(resp)
 
 
+def create_template(description: str, html: str) -> dict[str, Any]:
+    """Create (or update) a reusable PostGrid letter template.
+
+    Returns the full template object; ``id`` (e.g. ``tmpl_abc123``) is what
+    you pass to ``create_letter(template=...)`` to avoid resending the HTML on
+    every letter.  Templates live in the PostGrid dashboard and can be edited
+    there visually.
+    """
+    payload = {"description": description, "html": html}
+    resp = requests.post(f"{BASE}/templates", json=payload,
+                         headers=_headers(), timeout=60)
+    return _check(resp)
+
+
+def list_templates(skip: int = 0, limit: int = 40) -> list[dict[str, Any]]:
+    """Return a page of PostGrid letter templates."""
+    resp = requests.get(f"{BASE}/templates",
+                        params={"skip": skip, "limit": limit},
+                        headers=_headers(), timeout=30)
+    return _check(resp).get("data", [])
+
+
 def is_test_key() -> bool:
     return config.POSTGRID_API_KEY.startswith("test_")

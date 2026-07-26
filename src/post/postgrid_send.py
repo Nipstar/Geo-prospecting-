@@ -27,6 +27,27 @@ from . import letter as letter_mod
 _UK_PC = re.compile(r"[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$", re.I)
 _US_STATE_ZIP = re.compile(r"\b([A-Z]{2})\s+(\d{5})(?:-\d{4})?$")
 
+# Abbreviations that str.title() would mangle (e.g. "Llp" → "LLP")
+_ADDR_ABBRS = ("LLP", "PLC", "Ltd", "NHS", "UK", "GB", "LLC", "LTD")
+
+
+def _title_addr(s: str) -> str:
+    """Title-case a human-facing address component.
+
+    Companies House stores addresses in ALL CAPS; this converts them to
+    readable title case while restoring known abbreviations.
+    Postcodes are left unchanged (callers should not pass them here).
+    """
+    if not s:
+        return s
+    result = s.title()
+    # str.title() capitalises letters after digits: "1St" → "1st"
+    result = re.sub(r'(\d)([A-Z])', lambda m: m.group(1) + m.group(2).lower(), result)
+    for abbr in _ADDR_ABBRS:
+        # Replace the title()-mangled form with the correct abbreviation
+        result = re.sub(r'\b' + abbr.title() + r'\b', abbr, result)
+    return result
+
 
 def _ensure_cols(conn) -> None:
     for col in ("postgrid_id TEXT", "postgrid_status TEXT"):
@@ -53,26 +74,28 @@ def _parse_address(reg: str | None) -> dict | None:
         city = pre or (parts[-2] if len(parts) >= 2 else "")
         body = parts[:-1] if pre else parts[:-2]
         line1 = ", ".join(body) or parts[0]
-        return {"line1": line1, "city": city, "state": state,
-                "postal": postal, "country": "US"}
+        return {"line1": _title_addr(line1), "city": _title_addr(city),
+                "state": state, "postal": postal, "country": "US"}
 
     pc = _UK_PC.search(last)
     if pc:  # UK: "..., Town, POSTCODE"  or  "..., Town POSTCODE"
-        postal = pc.group(0)
+        postal = pc.group(0).upper()  # postcodes always uppercase
         pre = last[: pc.start()].strip().rstrip(",")
         if pre:
             city, body = pre, parts[:-1]
         else:
             city, body = (parts[-2] if len(parts) >= 2 else ""), parts[:-2]
         line1 = ", ".join(body) or parts[0]
-        return {"line1": line1, "city": city, "state": "",
-                "postal": postal, "country": "GB"}
+        return {"line1": _title_addr(line1), "city": _title_addr(city),
+                "state": "", "postal": postal, "country": "GB"}
     return None
 
 
 def _contact(co, addr: dict) -> dict:
     out = dict(addr)
-    out["company"] = co["name"]
+    # Title-case company name only if it is ALL CAPS (Companies House style)
+    name = co["name"]
+    out["company"] = _title_addr(name) if name == name.upper() else name
     return out
 
 
@@ -110,19 +133,63 @@ def run_postgrid_send(limit: int = 25, campaign: str = "geo-1",
             if not addr.get("postal"):
                 skipped_no_pc += 1
                 continue
-            try:
-                html, meta = letter_mod.render_letter_html(conn, co, stamped_address=True)
-            except ValueError as exc:  # no visibility check
-                errors += 1
-                print(f"  ! {co['name']}: {exc}")
-                continue
-
             size = "a4" if addr["country"] == "GB" else "us_letter"
+
+            # Prefer portal template IDs (PostGrid-editable) over inline HTML.
+            tmpl_uk = config.POSTGRID_TEMPLATE_UK
+            tmpl_us = config.POSTGRID_TEMPLATE_US
+            tmpl_id = (tmpl_uk if addr["country"] == "GB" else tmpl_us) or None
+
+            if tmpl_id:
+                try:
+                    merge, meta = letter_mod.build_merge_variables(conn, co)
+                except ValueError as exc:
+                    errors += 1
+                    print(f"  ! {co['name']}: {exc}")
+                    continue
+                # Build {{addrBlock}}: a single newline-separated string rendered
+                # with white-space:pre-line in the template.  PostGrid uppercases
+                # {{to.*}} standard vars for postal compliance so we avoid them in
+                # the letter body and use this custom var instead.
+                co_name = (co["name"] or "").strip()
+                addr_name = (meta.get("addressee") or "").strip()
+                co_name_fmt = _title_addr(co_name) if co_name == co_name.upper() else co_name
+                # Suppress company line when it IS the named person (sole trader)
+                # e.g. "Sebastian Acosta, Realtor in Miami" starts with "Sebastian Acosta"
+                addr_first = addr_name.split(",")[0].strip().lower() if addr_name else ""
+                show_company = not (
+                    addr_name and addr_name != "The Owner" and
+                    addr_first and co_name.lower().startswith(addr_first)
+                )
+                if addr["country"] == "GB":
+                    addr_line = f"{addr['line1']}, {addr['city']} {addr['postal']}"
+                else:
+                    addr_line = f"{addr['line1']}, {addr['city']}, {addr['state']} {addr['postal']}"
+                block_lines = [addr_name]
+                if show_company:
+                    block_lines.append(co_name_fmt)
+                block_lines.append(addr_line)
+                merge["addrBlock"] = "\n".join(line for line in block_lines if line)
+                html_arg = None
+                tmpl_arg = tmpl_id
+                merge_arg = merge
+            else:
+                try:
+                    html_arg, meta = letter_mod.render_letter_html(conn, co, stamped_address=True)
+                except ValueError as exc:
+                    errors += 1
+                    print(f"  ! {co['name']}: {exc}")
+                    continue
+                tmpl_arg = None
+                merge_arg = None
+
             order = None
             for attempt in range(4):
                 try:
                     order = postgrid.create_letter(
-                        _contact(co, addr), config.POSTGRID_FROM, html=html,
+                        _contact(co, addr), config.POSTGRID_FROM,
+                        html=html_arg, template=tmpl_arg, merge=merge_arg,
+                        color=True,
                         size=size, mailing_class=mailing_class,
                         metadata={"companyId": co["id"], "campaign": campaign},
                         idempotency_key=f"{campaign}-{co['id']}")

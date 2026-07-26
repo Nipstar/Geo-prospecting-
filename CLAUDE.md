@@ -70,3 +70,53 @@ One pipeline, two delivery channels, decided by `cli route`:
 - No LinkedIn person → postal letter to a named director (Companies House for
   Ltds, proprietor / "The Owner" for sole traders). Post is the safe channel
   for both. Letters carry the same headline finding plus a QR code and short URL.
+
+## POSTGRID LETTER SYSTEM
+
+Letters sent via PostGrid using editable portal templates (not inline HTML).
+
+### Templates (sandbox — rotate to live key before volume send)
+- UK A4:    `POSTGRID_TEMPLATE_UK`  (set in .env)
+- US Letter: `POSTGRID_TEMPLATE_US` (set in .env)
+- Re-upload after any HTML change: `python scripts/create_postgrid_templates.py`
+- Edit visually: https://app.postgrid.com/templates
+
+### Merge variables (passed via `build_merge_variables()` in `src/post/letter.py`)
+| Variable      | Value |
+|---------------|-------|
+| `addresseeName` | Named person or "The Owner" |
+| `salutation`    | "Mr Smith" / "Ms Jones" / "Sir or Madam" — never "The Owner" |
+| `addrBlock`     | Pre-formatted newline-separated address block (white-space:pre-line) |
+| `headline`      | AI finding sentence |
+| `town`          | Company town |
+| `sector`        | Service noun, always pluralised ("solicitors" not "solicitor") |
+| `dateStr`       | "26 July 2026" |
+| `claimUrl`      | Full https:// claim URL |
+
+### Key constraints discovered
+- PostGrid uppercases ALL `{{to.*}}` contact vars internally (postal compliance).
+  Use custom `{{addrBlock}}` merge var instead — built in `postgrid_send.py`.
+- PostGrid template validator rejects Handlebars block helpers (`{{#if}}`).
+  All conditional logic (e.g. suppress company line for sole traders) must be
+  done server-side in Python before passing merge vars.
+- `color=True` is hardcoded in the send loop — all letters print in colour.
+- `addressPlacement=insert_blank_page` — page 1 is PostGrid's auto envelope
+  address page (always uppercase, uneditable from HTML).
+
+### Salutation fallback chain (letter.py `_addressee()`)
+1. Official DB record (Companies House officer, Sunbiz, LinkedIn)
+2. Any person record in the DB
+3. Heuristic: name embedded in company name (e.g. "Jose Fuentes Real Estate")
+   — fires when first token has detectable gender, second token is not a
+   business/location word, third token IS a business word.
+4. "The Owner" / "Sir or Madam"
+
+### Address formatting (`postgrid_send.py`)
+- `_title_addr()` converts ALL-CAPS Companies House addresses to title case.
+- Postcodes/zip codes always stay uppercase.
+- Ordinal suffixes handled: "1ST FLOOR" → "1st Floor".
+- Known abbreviations restored: LLP, PLC, NHS, Ltd, LLC.
+
+### Claim URL
+`go.antekautomation.com/<slug>` (CNAME → antek-claim.pages.dev).
+Set `CLAIM_SITE_URL=https://go.antekautomation.com` in .env.
