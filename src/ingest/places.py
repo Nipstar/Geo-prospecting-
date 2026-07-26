@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from .. import config, db
+from .. import config, db, franchises
 from . import util
 
 ACTOR_ID = "compass/crawler-google-places"
@@ -146,8 +146,8 @@ def run_places_search(
             mapped = _map_place(item, sector, town)
             if not mapped["name"]:
                 continue
-            if util.is_chain(mapped["name"]):
-                skipped_chain += 1
+            if util.is_chain(mapped["name"]) or franchises.is_franchise(mapped["name"]):
+                skipped_chain += 1  # national chain or real-estate franchise office
                 continue
             dup = util.find_duplicate(conn, mapped["name"], mapped["town"], mapped["website"])
             if dup:
