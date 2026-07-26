@@ -127,15 +127,18 @@ def ingest_apollo(state: str, town: str | None, limit: int, no_email: bool, dry_
 @click.option("--town", default=None, help="Only companies in this town.")
 @click.option("--limit", default=50, type=int)
 @click.option("--no-email", is_flag=True, help="Names only; skip scraping contact emails.")
+@click.option("--render-js", is_flag=True, help="Phase-2: headless browser for JS/anti-bot sites.")
 @click.option("--dry-run", is_flag=True)
 def ingest_web_owner(state: str | None, town: str | None, limit: int,
-                     no_email: bool, dry_run: bool) -> None:
+                     no_email: bool, render_js: bool, dry_run: bool) -> None:
     """US owner enrichment via website scrape (name heuristic + About-page LLM
-    extract + public contact email). ~80% hit-rate, ~£0 — the primary US path."""
+    extract + public contact email). ~80% hit-rate, ~£0 — the primary US path.
+    --render-js uses a real browser for JS/Cloudflare sites (phase-2)."""
     from .ingest import web_owner
 
     res = web_owner.run_web_owner_enrich(limit=limit, state=state, town=town,
-                                         scrape_email=not no_email, dry_run=dry_run)
+                                         scrape_email=not no_email, dry_run=dry_run,
+                                         render_js=render_js)
     console.print(res)
 
 

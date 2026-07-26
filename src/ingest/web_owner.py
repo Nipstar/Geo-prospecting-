@@ -74,6 +74,16 @@ def _fetch(url: str) -> str:
         return ""
 
 
+def _fetch_pw(url: str, page) -> str:
+    """Render a JS/anti-bot page with a live browser (phase-2)."""
+    try:
+        page.goto(url, timeout=20000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1200)
+        return page.content()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _visible_text(html: str) -> str:
     html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
@@ -161,9 +171,20 @@ def _pick_email(emails: list[str], owner: str | None, domain: str | None) -> str
 
 def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                          town: str | None = None, scrape_email: bool = True,
-                         dry_run: bool = False, sleep: float = 0.5) -> dict[str, int]:
+                         dry_run: bool = False, sleep: float = 0.5,
+                         render_js: bool = False) -> dict[str, int]:
     conn = db.get_connection()
     db.ensure_person_contact(conn)
+
+    # Optional phase-2: a headless browser for JS/anti-bot sites that return
+    # nothing to plain requests. `fetch(url)` transparently uses it when on.
+    _pw = _browser = _page = None
+    if render_js:
+        from playwright.sync_api import sync_playwright
+        _pw = sync_playwright().start()
+        _browser = _pw.chromium.launch(headless=True)
+        _page = _browser.new_page(user_agent=_UA["User-Agent"])
+    fetch = (lambda u: _fetch_pw(u, _page)) if render_js else _fetch  # noqa: E731
 
     where = ["c.website IS NOT NULL AND c.website <> ''",
              "c.website LIKE 'http%'",
@@ -192,7 +213,7 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                 continue
             try:
                 base = f"https://{domain}"
-                htmls = [_fetch(base) or _fetch(f"http://{domain}")]
+                htmls = [fetch(base) or fetch(f"http://{domain}")]
                 text = _visible_text(htmls[0])
 
                 # Try the homepage first; if no owner named there, crawl the
@@ -201,7 +222,7 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                 owner = _extract_owner(co["name"], text) if text else None
                 if not owner:
                     for path in _ABOUT_PATHS:
-                        extra = _fetch(urljoin(base, path))
+                        extra = fetch(urljoin(base, path))
                         if not extra:
                             continue
                         htmls.append(extra)
@@ -243,6 +264,11 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
             conn.commit()
     finally:
         conn.close()
+        if _browser:
+            try:
+                _browser.close(); _pw.stop()
+            except Exception:  # noqa: BLE001
+                pass
     return {"processed": processed, "named": named, "via_name": via_name,
             "via_web": via_web, "emails_found": emails_found,
             "no_owner": no_owner, "franchise_skipped": franchise, "errors": errors}
