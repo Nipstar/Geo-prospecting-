@@ -138,8 +138,11 @@ def _market(company) -> str:
     return "US" if town in _US_TOWNS else "UK"
 
 
-def build_letter(conn, company, letter_no: int = 1) -> dict:
-    """Generate a letter PDF + letters row. letter_no 2 = shorter follow-up."""
+def render_letter_html(conn, company, letter_no: int = 1,
+                       stamped_address: bool = False) -> tuple[str, dict]:
+    """Render the branded letter HTML + metadata. `stamped_address=True` hides
+    the in-body sender/addressee blocks (for PostGrid, which stamps its own
+    address page). Does not touch the DB or write a PDF."""
     check = db.latest_check(conn, company["id"])
     if check is None:
         raise ValueError(
@@ -179,18 +182,28 @@ def build_letter(conn, company, letter_no: int = 1) -> dict:
         claim_url=claim_url,
         qr_data_uri=_qr_data_uri(claim_url),
         market=_market(company),
+        stamped_address=stamped_address,
     )
+    meta = {"person_id": person_id, "claim_code": code, "claim_url": claim_url,
+            "addressee": addressee, "salutation": salutation, "slug": slug,
+            "market": _market(company)}
+    return html, meta
 
+
+def build_letter(conn, company, letter_no: int = 1) -> dict:
+    """Generate a letter PDF + letters row. letter_no 2 = shorter follow-up."""
+    html, meta = render_letter_html(conn, company, letter_no, stamped_address=False)
     suffix = "-followup" if letter_no == 2 else ""
     out_path = config.LETTERS_DIR / f"{slugify(company['name'])}{suffix}.pdf"
     _render_pdf(html, out_path)
 
     letter_id = db.insert_letter(
-        conn, company["id"], person_id=person_id, letter_no=letter_no,
-        claim_code=code, pdf_path=str(out_path), status="drafted",
+        conn, company["id"], person_id=meta["person_id"], letter_no=letter_no,
+        claim_code=meta["claim_code"], pdf_path=str(out_path), status="drafted",
     )
-    return {"letter_id": letter_id, "pdf_path": str(out_path), "claim_code": code,
-            "claim_url": claim_url, "addressee": addressee}
+    return {"letter_id": letter_id, "pdf_path": str(out_path),
+            "claim_code": meta["claim_code"], "claim_url": meta["claim_url"],
+            "addressee": meta["addressee"]}
 
 
 def _render_pdf(html: str, out_path: Path) -> None:

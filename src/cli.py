@@ -139,6 +139,23 @@ def ingest_web_owner(state: str | None, town: str | None, limit: int,
     console.print(res)
 
 
+@cli.command("postgrid-send")
+@click.option("--limit", default=25, type=int)
+@click.option("--campaign", default="geo-1", help="Tag for metadata dedup.")
+@click.option("--mailing-class", default=None, help="e.g. first_class, standard_class, royal_mail_first_class.")
+@click.option("--live", is_flag=True, help="Force live even with a test key (normally auto from key).")
+@click.option("--dry-run", is_flag=True, help="Select + render but do not create orders.")
+def postgrid_send_cmd(limit: int, campaign: str, mailing_class: str | None,
+                      live: bool, dry_run: bool) -> None:
+    """Send letters via PostGrid (server-side render). Test key = sandbox."""
+    from .post import postgrid_send
+
+    res = postgrid_send.run_postgrid_send(
+        limit=limit, campaign=campaign, mailing_class=mailing_class,
+        test=(False if live else None), dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("pitchability")
 @click.option("--limit", default=None, type=int)
 def pitchability_cmd(limit: int | None) -> None:
