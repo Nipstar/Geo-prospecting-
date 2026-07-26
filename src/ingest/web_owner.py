@@ -22,7 +22,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from .. import config, db
+from .. import config, db, franchises
 
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; AntekBot/1.0)"}
 _ABOUT_PATHS = ["/about", "/about-us", "/our-agents", "/team", "/meet-the-team",
@@ -179,9 +179,13 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
     rows = conn.execute(sql, params).fetchall()
 
     processed = named = via_name = via_web = emails_found = no_owner = errors = 0
+    franchise = 0
     try:
         for co in rows:
             processed += 1
+            if franchises.is_franchise(co["name"]):
+                franchise += 1
+                continue  # corporate office — no single owner to find
             domain = _domain(co["website"])
             if not domain:
                 no_owner += 1
@@ -241,4 +245,4 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
         conn.close()
     return {"processed": processed, "named": named, "via_name": via_name,
             "via_web": via_web, "emails_found": emails_found,
-            "no_owner": no_owner, "errors": errors}
+            "no_owner": no_owner, "franchise_skipped": franchise, "errors": errors}
