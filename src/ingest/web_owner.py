@@ -84,11 +84,15 @@ def _extract_owner(business: str, text: str) -> dict | None:
     if not config.OPENROUTER_API_KEY or len(text) < 40:
         return None
     prompt = (
-        "From this real-estate business's website text, identify the owner, "
-        "broker/principal, or founder (the individual who runs it). "
+        "From this real-estate business's website text, identify the single "
+        "person to address a letter to: the owner, broker/principal, founder, "
+        "OR — if it's a team/group — the team leader (often the individual the "
+        "team is named after, e.g. 'The Crawford Team' -> the lead named "
+        "Crawford, 'McGuire Home Team, Rob McGuire' -> Rob McGuire). "
         f"Business name: {business}. Text: {text[:4000]} "
         'Reply ONLY compact JSON: {"name":"Full Name or null","title":"role or null"}. '
-        "Use null if no specific individual is named."
+        "Give a real FULL name (first + last) or null — never a surname alone, "
+        "never a generic label. Use null if no specific individual is named."
     )
     try:
         r = requests.post(
@@ -107,6 +111,9 @@ def _extract_owner(business: str, text: str) -> dict | None:
         return None
     name = (data.get("name") or "").strip()
     if not name or name.lower() in ("null", "none", "n/a"):
+        return None
+    # Require a real full name (first + last), not a bare surname or label.
+    if len([t for t in re.split(r"\s+", name) if len(t) > 1]) < 2:
         return None
     return {"name": name, "title": (data.get("title") or "").strip() or None}
 
