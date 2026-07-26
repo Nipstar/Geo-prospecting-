@@ -26,10 +26,10 @@ BORDER = f"2px solid {CHARCOAL}"
 COMPANY_NAME = "Antek Automation"
 OPERATOR = "Andy Norman"
 ADDRESS_LINES = [
-    "Chantry House",
-    "38 Chantry Way",
+    "4 Highlands Road",
     "Andover",
-    "SP10 1LZ",
+    "Hampshire",
+    "SP10 2PX",
 ]
 PHONE = "0333 038 9960"
 WEBSITE = "antekautomation.com"
