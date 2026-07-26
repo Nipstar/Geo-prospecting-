@@ -36,6 +36,9 @@ GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
 # Used for the US market only; feeds letters + LinkedIn. Email is stored for the
 # US cold-email channel but never sent to UK leads.
 APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "")
+PROSPEO_API_KEY = os.getenv("PROSPEO_API_KEY", "")
+# Which owner-enrichment provider the US enricher uses: apollo | prospeo.
+ENRICH_PROVIDER = os.getenv("ENRICH_PROVIDER", "apollo").strip().lower()
 COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
 STANNP_API_KEY = os.getenv("STANNP_API_KEY", "")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")
