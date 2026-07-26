@@ -5,9 +5,9 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
-/* Page margins: browser preview (screen) + PostGrid print */
-@page { size: A4; margin: 22mm 20mm; }
-@media screen { body { padding: 22mm 20mm; } }
+/* Page margins for PostGrid print + browser screen preview */
+@page { margin: 22mm 20mm; }
+@media screen { body { padding: 22mm 20mm; max-width: 820px; margin: 0 auto; } }
 
 * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
 
@@ -19,14 +19,14 @@ body {
     line-height: 1.6;
 }
 
-/* ── Header: logo left, website/tel right ── */
+/* ── Header: logo + name left | sender address right ── */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     padding-bottom: 14px;
     border-bottom: 2px solid #2C2C2C;
-    margin-bottom: 0;
+    margin-bottom: 22px;
 }
 .brandmark { display: flex; align-items: center; gap: 10px; }
 .brandmark img { width: 46px; height: 46px; }
@@ -38,30 +38,19 @@ body {
     text-transform: uppercase;
     color: #2C2C2C;
 }
-.header-contact {
+.sender {
     text-align: right;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 8.5pt;
-    line-height: 1.6;
-    color: #444;
+    line-height: 1.65;
+    color: #2C2C2C;
 }
 
-/* ── Sender address block (below header, right-aligned) ── */
-.sender-block {
-    text-align: right;
-    font-family: 'JetBrains Mono', 'Courier New', monospace;
-    font-size: 8.5pt;
-    line-height: 1.6;
-    color: #444;
-    padding-top: 14px;
-    margin-bottom: 24px;
-}
-
-/* ── Recipient address block ── */
-.addressee-block {
+/* ── Recipient address ── */
+.addressee {
     font-size: 11pt;
     line-height: 1.55;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
     color: #2C2C2C;
 }
 
@@ -69,43 +58,41 @@ body {
 .date {
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 9pt;
-    color: #555;
-    margin-bottom: 22px;
+    color: #2C2C2C;
+    margin-bottom: 20px;
 }
 
 /* ── Body ── */
 .body { font-size: 11pt; line-height: 1.65; }
 .body p { margin-bottom: 14px; }
 
-/* ── Neo-brutalist finding block ── */
+/* ── Finding block: coral left border + cream background ── */
 .finding {
     border-left: 5px solid #CD5C3C;
     padding: 10px 14px;
     background: #E8DCC8;
     font-weight: 600;
-    font-size: 11.5pt;
-    margin-bottom: 18px;
-    line-height: 1.4;
+    font-size: 11pt;
+    margin-bottom: 16px;
+    line-height: 1.45;
 }
 
-/* ── Claim CTA box: QR left, URL right ── */
+/* ── Claim CTA: border + hard shadow, QR left + URL right ── */
 .claim {
-    margin: 22px 0 24px;
+    margin: 20px 0 22px;
     border: 2px solid #2C2C2C;
     box-shadow: 4px 4px 0 #2C2C2C;
-    padding: 16px 20px;
+    padding: 14px 18px;
     background: #FFFFFF;
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
 }
 .claim img.qr {
-    width: 100px;
-    height: 100px;
+    width: 120px;
+    height: 120px;
     flex-shrink: 0;
-    border: 1px solid #ddd;
 }
-.claim-text { flex: 1; }
 .claim-text .label {
     font-size: 10pt;
     color: #555;
@@ -120,92 +107,86 @@ body {
 }
 
 /* ── Sign-off ── */
-.sign { margin-top: 24px; }
-.sign p { margin-bottom: 8px; }
+.sign { margin-top: 22px; }
+.sign p { margin-bottom: 6px; }
 .sign .sig-name {
     font-family: 'Outfit', 'Arial Black', sans-serif;
     font-weight: 800;
     font-size: 13pt;
 }
-.sign .sig-company { font-size: 10pt; color: #555; margin-top: 2px; }
+.sign .sig-company { font-size: 10pt; color: #2C2C2C; margin-top: 2px; }
 
-/* ── PS ── */
+/* ── PS: plain italic, no border ── */
 .ps {
-    margin-top: 20px;
-    padding-top: 14px;
-    border-top: 1px solid #ddd;
+    margin-top: 16px;
     font-style: italic;
     font-size: 10.5pt;
-    color: #444;
+    color: #2C2C2C;
 }
 
-/* ── Footer: company name + website only (address is above in sender block) ── */
+/* ── Footer ── */
 .foot {
-    margin-top: 30px;
+    margin-top: 28px;
     padding-top: 10px;
-    border-top: 2px solid #2C2C2C;
+    border-top: 1px solid #2C2C2C;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 8pt;
-    color: #666;
+    color: #555;
+    line-height: 1.6;
 }
 </style>
 </head>
 <body>
 
-  <!-- HEADER: logo + contact right -->
+  <!-- HEADER -->
   <div class="header">
     <div class="brandmark">
       <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB3aWR0aD0iMjAwMCIgem9vbUFuZFBhbj0ibWFnbmlmeSIgdmlld0JveD0iMCAwIDE1MDAgMTQ5OS45OTk5MzMiIGhlaWdodD0iMjAwMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ieE1pZFlNaWQgbWVldCIgdmVyc2lvbj0iMS4wIj48ZGVmcz48Zy8+PGNsaXBQYXRoIGlkPSI3OGY4MDUyNjc1Ij48cGF0aCBkPSJNIDQ1LjYzNjcxOSAxMzMuNjc5Njg4IEwgMTQ1NSAxMzMuNjc5Njg4IEwgMTQ1NSAxMzY2LjMyMDMxMiBMIDQ1LjYzNjcxOSAxMzY2LjMyMDMxMiBaIE0gNDUuNjM2NzE5IDEzMy42Nzk2ODggIiBjbGlwLXJ1bGU9Im5vbnplcm8iLz48L2NsaXBQYXRoPjxjbGlwUGF0aCBpZD0iNjE0MmNhM2FiZSI+PHBhdGggZD0iTSA3NTAgMTMzLjY3OTY4OCBMIDE0NTQuMzYzMjgxIDEzNjYuMzIwMzEyIEwgNDUuNjM2NzE5IDEzNjYuMzIwMzEyIFogTSA3NTAgMTMzLjY3OTY4OCAiIGNsaXAtcnVsZT0ibm9uemVybyIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSI3OTk2Zjg2ZDY4Ij48cGF0aCBkPSJNIDAuNjM2NzE5IDAuNjc5Njg4IEwgMTQwOS4zOTg0MzggMC42Nzk2ODggTCAxNDA5LjM5ODQzOCAxMjMzLjMyMDMxMiBMIDAuNjM2NzE5IDEyMzMuMzIwMzEyIFogTSAwLjYzNjcxOSAwLjY3OTY4OCAiIGNsaXAtcnVsZT0ibm9uemVybyIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSIzMjNhN2ViNjE5Ij48cGF0aCBkPSJNIDcwNSAwLjY3OTY4OCBMIDE0MDkuMzYzMjgxIDEyMzMuMzIwMzEyIEwgMC42MzY3MTkgMTIzMy4zMjAzMTIgWiBNIDcwNSAwLjY3OTY4OCAiIGNsaXAtcnVsZT0ibm9uemVybyIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSI3MGRmMWMxOTU0Ij48cmVjdCB4PSIwIiB3aWR0aD0iMTQxMCIgeT0iMCIgaGVpZ2h0PSIxMjM0Ii8+PC9jbGlwUGF0aD48Y2xpcFBhdGggaWQ9IjM5ZTM1ZjcyZTciPjxyZWN0IHg9IjAiIHdpZHRoPSIxMDAxIiB5PSIwIiBoZWlnaHQ9IjE1MDAiLz48L2NsaXBQYXRoPjxjbGlwUGF0aCBpZD0iMzg0OWJhMWQwNyI+PHJlY3QgeD0iMCIgd2lkdGg9IjEwMDAiIHk9IjAiIGhlaWdodD0iMTUwMCIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCM3OGY4MDUyNjc1KSI+PGcgY2xpcC1wYXRoPSJ1cmwoIzYxNDJjYTNhYmUpIj48ZyB0cmFuc2Zvcm09Im1hdHJpeCgxLCAwLCAwLCAxLCA0NSwgMTMzKSI+PGcgY2xpcC1wYXRoPSJ1cmwoIzcwZGYxYzE5NTQpIj48ZyBjbGlwLXBhdGg9InVybCgjNzk5NmY4NmQ2OCkiPjxnIGNsaXAtcGF0aD0idXJsKCMzMjNhN2ViNjE5KSI+PHBhdGggZmlsbD0iIzFhMWExYSIgZD0iTSAwLjYzNjcxOSAwLjY3OTY4OCBMIDE0MTEuNDI5Njg4IDAuNjc5Njg4IEwgMTQxMS40Mjk2ODggMTIzMy4zMjAzMTIgTCAwLjYzNjcxOSAxMjMzLjMyMDMxMiBaIE0gMC42MzY3MTkgMC42Nzk2ODggIiBmaWxsLW9wYWNpdHk9IjEiIGZpbGwtcnVsZT0ibm9uemVybyIvPjwvZz48L2c+PC9nPjwvZz48L2c+PC9nPjxnIHRyYW5zZm9ybT0ibWF0cml4KDEsIDAsIDAsIDEsIDE4MywgMC4wMDAwMDAwMDAwMDAxMTI4NjEpIj48ZyBjbGlwLXBhdGg9InVybCgjMzllMzVmNzJlNykiPjxnIGZpbGw9IiNkNGM5YmMiIGZpbGwtb3BhY2l0eT0iMSI+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMC43NTE1ODUsIDEyNzMuODI0MDk0KSI+PGc+PHBhdGggZD0iTSA3MzUuMTA5Mzc1IDAgTCA2NjkuNzk2ODc1IC0xMjYuNDUzMTI1IEwgMzI5LjM0Mzc1IC0xMjYuNDUzMTI1IEwgMjY0LjAzMTI1IDAgTCAxMy44OTA2MjUgMCBMIDUwMC4yNjU2MjUgLTkwMy4yNSBMIDk4NS4yMzQzNzUgMCBaIE0gNTgyLjI1IC0yOTUuOTg0Mzc1IEwgNTAwLjI2NTYyNSAtNDU0LjQwNjI1IEwgNDE2Ljg3NSAtMjk1Ljk4NDM3NSBaIE0gNTgyLjI1IC0yOTUuOTg0Mzc1ICIvPjwvZz48L2c+PC9nPjwvZz48L2c+PGcgdHJhbnNmb3JtPSJtYXRyaXgoMSwgMCwgMCwgMSwgMzE3LCAwLjAwMDAwMDAwMDAwMDExMjg2MSkiPjxnIGNsaXAtcGF0aD0idXJsKCMzODQ5YmExZDA3KSI+PGcgZmlsbD0iI2Q2NzQ1NCIgZmlsbC1vcGFjaXR5PSIxIj48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLjExMjM0LCAxMjczLjgyNDA5NCkiPjxnPjxwYXRoIGQ9Ik0gNzM1LjEwOTM3NSAwIEwgNjY5Ljc5Njg3NSAtMTI2LjQ1MzEyNSBMIDMyOS4zNDM3NSAtMTI2LjQ1MzEyNSBMIDI2NC4wMzEyNSAwIEwgMTMuODkwNjI1IDAgTCA1MDAuMjY1NjI1IC05MDMuMjUgTCA5ODUuMjM0Mzc1IDAgWiBNIDU4Mi4yNSAtMjk1Ljk4NDM3NSBMIDUwMC4yNjU2MjUgLTQ1NC40MDYyNSBMIDQxNi44NzUgLTI5NS45ODQzNzUgWiBNIDU4Mi4yNSAtMjk1Ljk4NDM3NSAiLz48L2c+PC9nPjwvZz48L2c+PC9nPjwvc3ZnPg==" alt="Antek Automation">
       <span class="name">Antek&nbsp;Automation</span>
     </div>
-    <div class="header-contact">
-      antekautomation.com &middot; 0333 038 9960
+    <div class="sender">
+      4 Highlands Road<br>
+      Andover<br>
+      Hampshire<br>
+      SP10 2PX<br>
+      0333 038 9960
     </div>
   </div>
 
-  <!-- SENDER ADDRESS: right-aligned, below header line -->
-  <div class="sender-block">
-    4 Highlands Road<br>
-    Andover, Hampshire, SP10 2PX
-  </div>
-
   <!-- RECIPIENT ADDRESS -->
-  <div class="addressee-block">
-    Sarah Jones<br>
-    Winchester Law LLP<br>
-    14 High Street<br>
-    Winchester, SO23 9JX
+  <div class="addressee">
+    The Owner<br>
+    Dutton Gregory Solicitors – Winchester<br>
+    44 Jewry St, Winchester SO23 8RY
   </div>
 
   <!-- DATE -->
   <div class="date">26 July 2026</div>
 
-  <!-- LETTER BODY -->
+  <!-- BODY -->
   <div class="body">
 
-    <p>Dear Sarah,</p>
+    <p>Dear The Owner,</p>
 
-    <div class="finding">When people in Winchester search AI for a solicitor, Winchester Law LLP does not appear in any of the 5 engines checked.</div>
+    <div class="finding">When people in Winchester ask an AI tool like ChatGPT for a solicitors, Dutton Gregory Solicitors – Winchester does not appear at all across the 5 engines I checked, while Warner & Richardson LLP appears in more of them.</div>
 
     <p>I run Antek Automation in Andover. I have been checking how Winchester
        solicitors show up when people ask AI tools like ChatGPT for a
-       recommendation &mdash; that is how a growing number of your customers now
-       start looking.</p>
+       recommendation. That is how a lot of your customers now start looking.</p>
 
-    <p>Roughly 85&nbsp;% of UK SMEs have zero measurable AI visibility. Most have no
+    <p>Roughly 85% of UK SMEs have zero measurable AI visibility. Most have no
        idea, because it does not show up in the places they usually check.</p>
 
-    <p>I have put together a short AI&nbsp;Visibility Check report for
-       Winchester Law LLP. It shows exactly where you appear across ChatGPT,
-       Perplexity and Google&rsquo;s AI results &mdash; and where a competitor
-       appears instead. It is free and already prepared. You just need to claim it.</p>
+    <p>I put together a short AI Visibility Check report for Dutton Gregory Solicitors – Winchester. It
+       shows exactly where you appear across ChatGPT, Perplexity and Google&rsquo;s AI
+       results, and where a competitor appears instead. It is free and it is
+       already prepared. You just need to claim it.</p>
 
-    <!-- CLAIM CTA: QR code + URL -->
     <div class="claim">
-      <img class="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fantek-claim.pages.dev%2Fwinchester-law" alt="Scan to claim your report">
+      <img class="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https%3A%2F%2Fgo.antekautomation.com%2Fdutton-gregory-winchester" alt="Scan to claim your report">
       <div class="claim-text">
-        <div class="label">Scan the code or visit:</div>
-        <div class="url">https://antek-claim.pages.dev/winchester-law</div>
+        <div class="label">Scan the code, or go to:</div>
+        <div class="url">https://go.antekautomation.com/dutton-gregory-winchester</div>
       </div>
     </div>
 
@@ -215,14 +196,13 @@ body {
       <div class="sig-company">Antek Automation</div>
     </div>
 
-    <p class="ps">PS&nbsp;&mdash; No catch. The report exists either way.
-       I&rsquo;d rather you saw it.</p>
+    <p class="ps">PS. No catch. The report exists either way. I&rsquo;d rather you saw it.</p>
 
   </div>
 
-  <!-- FOOTER: website only — address already shown above -->
+  <!-- FOOTER -->
   <div class="foot">
-    Antek Automation &middot; antekautomation.com &middot; 0333 038 9960
+    Antek Automation &middot; 4 Highlands Road, Andover, Hampshire, SP10 2PX &middot; 0333 038 9960 &middot; antekautomation.com
   </div>
 
 </body>
