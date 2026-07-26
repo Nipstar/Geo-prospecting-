@@ -300,7 +300,6 @@ def build_merge_variables(conn, company) -> tuple[dict, dict]:
         "headline": _opener(company, check, sector_word),
         "town": town,
         "sector": _pluralise(sector_word),  # always plural — "how X solicitors show up"
-        "dateStr": date.today().strftime("%d %B %Y"),
         "claimUrl": claim_url,
     }
     meta = {

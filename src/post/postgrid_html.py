@@ -96,12 +96,12 @@ body {
 .addressee {
     font-size: 11pt;
     line-height: 1.5;
-    margin-bottom: 14px;
+    margin-bottom: 32px;   /* increased — date removed, this gap replaces it */
     color: #2C2C2C;
     white-space: pre-line;  /* so \n in {{addrBlock}} renders as a line break */
 }
 
-/* ── Date ── */
+/* ── Date (unused — kept for reference) ── */
 .date {
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 9pt;
@@ -211,9 +211,6 @@ def uk_html(logo_uri: str | None = None) -> str:
   <!-- RECIPIENT ADDRESS — single pre-formatted block var (avoids {{to.*}} uppercase) -->
   <div class="addressee">{{{{addrBlock}}}}</div>
 
-  <!-- DATE -->
-  <div class="date">{{{{dateStr}}}}</div>
-
   <!-- BODY -->
   <div class="body">
 
@@ -285,9 +282,6 @@ def us_html(logo_uri: str | None = None) -> str:
 
   <!-- RECIPIENT ADDRESS — single pre-formatted block var (avoids {{to.*}} uppercase) -->
   <div class="addressee">{{{{addrBlock}}}}</div>
-
-  <!-- DATE -->
-  <div class="date">{{{{dateStr}}}}</div>
 
   <!-- BODY -->
   <div class="body">
