@@ -1,23 +1,32 @@
 """Prospeo owner lookup (US) — drop-in alternative to Apollo.
 
-Exposes the SAME surface as clients/apollo.py so the enricher (ingest/apollo.py)
-can use either behind ENRICH_PROVIDER:
+Same surface as clients/apollo.py so the enricher (ingest/apollo.py) can use
+either behind ENRICH_PROVIDER:
 
-  search_owner(domain)              -> owner-titled people at a domain
-  match_person(first, last, domain) -> reveal a verified work email
+  search_owner(domain)                      -> owner-titled people at a domain
+  match_person(first, last, domain, person) -> reveal a verified work email
 
 Both return dicts shaped like Apollo's `person` (name / title / linkedin_url /
 email / email_status / phone_numbers / organization) so the enricher's ranking
-and email/phone extraction work unchanged.
+and email/phone extraction work unchanged. Extra internal keys (_person_id) are
+carried on the search result so match_person can reveal the cheapest/most
+accurate way.
 
-Prospeo REST API — https://prospeo.io/api-docs
-  POST https://api.prospeo.io/search-person   (filters: company_domain, job_title)
-  POST https://api.prospeo.io/enrich-person   (first_name+last_name+company_domain, or linkedin_url)
-Auth: header `X-KEY: <api_key>`. Simple JSON in/out.
+Prospeo REST API — https://prospeo.io/api-docs  (auth header `X-KEY`)
 
-Response nesting differs slightly per plan/version; the `_person_from` /
-`_pick_email` helpers read defensively across the common shapes. If a live call
-returns 4xx, only the request bodies in search_owner/match_person need adjusting.
+  POST /search-person   — flat body:
+    {"page":1,"filters":{"company":{"websites":{"include":[domain]}},
+                          "person_seniority":{"include":["Founder/Owner"]}}}
+    -> {"results":[{"person":{...},"company":{...}}], "pagination":{...}}
+
+  POST /enrich-person   — body wrapped in "data":
+    {"data":{ first_name+last_name+company_website | linkedin_url | email | person_id }}
+    -> {"person":{... "email":{"email":..,"status":"VERIFIED","revealed":true} ...}}
+
+Credits: search bills per revealed result; enrich = 1 credit per email found
+(10 per mobile). Search returns a MASKED email until revealed, so we treat
+masked emails as "no email" and let match_person do the paid reveal on the one
+owner we actually want.
 """
 from __future__ import annotations
 
@@ -29,125 +38,105 @@ from .. import config
 
 BASE = "https://api.prospeo.io"
 
-# Same owner-first title vocabulary as Apollo, so ranking is identical.
-OWNER_TITLES = [
-    "owner", "broker owner", "managing broker", "broker", "founder",
-    "co-founder", "president", "principal", "ceo", "managing member",
-    "managing director", "partner",
-]
+# Prospeo person_seniority enum values that indicate the principal/owner.
+OWNER_SENIORITY = ["Founder/Owner"]
 
-# Prospeo email verification states we treat as unusable → mapped to the
-# "unavailable" sentinel the enricher already rejects.
-_BAD_EMAIL_STATUS = {"INVALID", "DISPOSABLE", "UNKNOWN"}
+# Email verification states with no usable address.
+_BAD_EMAIL_STATUS = {"UNAVAILABLE", "INVALID", "NOT_FOUND"}
 
 
 def _headers() -> dict[str, str]:
     if not config.PROSPEO_API_KEY:
         raise RuntimeError("PROSPEO_API_KEY is not set.")
-    return {
-        "X-KEY": config.PROSPEO_API_KEY,
-        "Content-Type": "application/json",
-    }
+    return {"X-KEY": config.PROSPEO_API_KEY, "Content-Type": "application/json"}
 
 
-def _dig(obj: Any, *names: str) -> Any:
-    """First non-empty value found for any of `names`, searched one level deep."""
-    if not isinstance(obj, dict):
-        return None
-    for n in names:
-        if obj.get(n) not in (None, "", [], {}):
-            return obj[n]
-    return None
-
-
-def _pick_email(obj: dict) -> tuple[str | None, str | None]:
-    """Return (email, status). Handles email as a string or a nested object."""
-    raw = _dig(obj, "email", "professional_email", "work_email")
-    if isinstance(raw, dict):
-        email = _dig(raw, "email", "value", "address")
-        status = (_dig(raw, "status", "email_status", "verification", "result") or "")
-    else:
-        email = raw
-        status = (_dig(obj, "email_status", "email_verification") or "")
-    if not email:
+def _pick_email(person: dict) -> tuple[str | None, str | None]:
+    """Prospeo `email` is {email, status, revealed}. Masked/unrevealed -> none."""
+    e = person.get("email")
+    if not isinstance(e, dict):
         return None, None
-    status = str(status).upper()
-    # Fold clearly-bad states into the sentinel the enricher already drops.
-    return str(email), ("unavailable" if status in _BAD_EMAIL_STATUS else status.lower())
+    addr = e.get("email")
+    status = str(e.get("status") or "").upper()
+    # Masked (e.g. "g****@x.com") or not yet revealed -> not usable.
+    if not addr or "*" in addr or e.get("revealed") is False:
+        return None, ("unavailable" if status in _BAD_EMAIL_STATUS else None)
+    return addr, ("unavailable" if status in _BAD_EMAIL_STATUS else status.lower())
 
 
-def _pick_mobile(obj: dict) -> str | None:
-    raw = _dig(obj, "mobile", "phone", "mobile_phone", "phone_number")
-    if isinstance(raw, dict):
-        return _dig(raw, "number", "raw_number", "value", "international")
-    return raw
+def _pick_mobile(person: dict) -> str | None:
+    m = person.get("mobile")
+    if isinstance(m, dict):
+        num = m.get("mobile")
+        return num if num and "*" not in str(num) else None
+    return m or None
 
 
-def _person_from(obj: dict) -> dict[str, Any]:
-    """Normalise a Prospeo person/profile object into Apollo's `person` shape."""
-    first = _dig(obj, "first_name", "firstName") or ""
-    last = _dig(obj, "last_name", "lastName") or ""
-    full = _dig(obj, "full_name", "name") or f"{first} {last}".strip()
-    email, status = _pick_email(obj)
-    mobile = _pick_mobile(obj)
-    company = obj.get("company") if isinstance(obj.get("company"), dict) else {}
-    person: dict[str, Any] = {
+def _person_from(person: dict, company: dict | None = None) -> dict[str, Any]:
+    """Normalise a Prospeo person object into Apollo's `person` shape."""
+    company = company or {}
+    first = person.get("first_name") or ""
+    last = person.get("last_name") or ""
+    full = person.get("full_name") or f"{first} {last}".strip()
+    email, status = _pick_email(person)
+    mobile = _pick_mobile(person)
+    return {
         "first_name": first,
         "last_name": last,
         "name": full,
-        "title": _dig(obj, "job_title", "title", "position") or "",
-        "linkedin_url": _dig(obj, "linkedin_url", "linkedin", "linkedinUrl"),
+        "title": person.get("current_job_title") or "",
+        "linkedin_url": person.get("linkedin_url"),
         "email": email,
         "email_status": status,
         "phone_numbers": [{"raw_number": mobile}] if mobile else [],
-        "organization": {"phone": _dig(company, "phone")},
+        "organization": {"phone": company.get("phone")},
+        "_person_id": person.get("person_id"),  # for cheap re-enrichment
     }
-    return person
-
-
-def _profiles(payload: dict) -> list[dict]:
-    """Pull the list of people from a search response across shapes."""
-    resp = payload.get("response", payload)
-    if isinstance(resp, list):
-        return resp
-    for key in ("profiles", "results", "people", "data", "items"):
-        val = resp.get(key) if isinstance(resp, dict) else None
-        if isinstance(val, list):
-            return val
-    return []
 
 
 # ── Public surface (mirrors clients/apollo.py) ─────────────────────────────
 
 def search_owner(domain: str, per_page: int = 5) -> list[dict[str, Any]]:
-    """Search Person scoped to one company domain + owner-ish titles."""
+    """Search Person scoped to one company website + owner seniority."""
     payload = {
-        "filters": {
-            "company_domain": [domain],
-            "job_title": OWNER_TITLES,
-        },
-        "limit": per_page,
         "page": 1,
+        "filters": {
+            "company": {"websites": {"include": [domain]}},
+            "person_seniority": {"include": OWNER_SENIORITY},
+        },
     }
     resp = requests.post(f"{BASE}/search-person", json=payload,
-                         headers=_headers(), timeout=30)
+                         headers=_headers(), timeout=40)
+    if resp.status_code == 400 and resp.json().get("error_code") == "NO_RESULTS":
+        return []  # domain not in Prospeo's DB — expected for small local firms
     resp.raise_for_status()
-    return [_person_from(p) for p in _profiles(resp.json())]
+    results = resp.json().get("results", []) or []
+    out = []
+    for item in results:
+        p = item.get("person") if isinstance(item, dict) else None
+        if p:
+            out.append(_person_from(p, item.get("company")))
+    return out[:per_page]
 
 
 def match_person(first_name: str, last_name: str, domain: str,
-                 reveal_email: bool = True) -> dict[str, Any] | None:
-    """Enrich Person — reveal a verified work email for one named person."""
-    payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "company_domain": domain,
-    }
-    resp = requests.post(f"{BASE}/enrich-person", json=payload,
-                         headers=_headers(), timeout=30)
+                 reveal_email: bool = True,
+                 person: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Enrich Person — reveal a verified work email. Uses the cheapest key
+    available: person_id (from search) > linkedin_url > name+company_website."""
+    data: dict[str, Any]
+    if person and person.get("_person_id"):
+        data = {"person_id": person["_person_id"]}
+    elif person and person.get("linkedin_url"):
+        data = {"linkedin_url": person["linkedin_url"]}
+    else:
+        data = {"first_name": first_name, "last_name": last_name,
+                "company_website": domain}
+    resp = requests.post(f"{BASE}/enrich-person", json={"data": data},
+                         headers=_headers(), timeout=40)
     resp.raise_for_status()
     body = resp.json()
-    person = body.get("response", body)
-    if not isinstance(person, dict) or not person:
+    if body.get("error"):
         return None
-    return _person_from(person)
+    p = body.get("person")
+    return _person_from(p) if isinstance(p, dict) else None
