@@ -190,17 +190,25 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                 base = f"https://{domain}"
                 htmls = [_fetch(base) or _fetch(f"http://{domain}")]
                 text = _visible_text(htmls[0])
-                # Pull a couple of about/team pages if the homepage is thin.
-                if len(text) < 1500:
-                    for path in _ABOUT_PATHS[:5]:
-                        extra = _fetch(urljoin(base, path))
-                        if extra:
-                            htmls.append(extra)
-                            text += " " + _visible_text(extra)
-                            if len(text) > 3000:
-                                break
 
-                owner = _extract_owner(co["name"], text)
+                # Try the homepage first; if no owner named there, crawl the
+                # about/team pages and retry (owner is often only on /about,
+                # even when the homepage is content-rich).
+                owner = _extract_owner(co["name"], text) if text else None
+                if not owner:
+                    for path in _ABOUT_PATHS:
+                        extra = _fetch(urljoin(base, path))
+                        if not extra:
+                            continue
+                        htmls.append(extra)
+                        etext = _visible_text(extra)
+                        if len(etext) < 60:
+                            continue
+                        owner = _extract_owner(co["name"], etext)
+                        if owner:
+                            text += " " + etext
+                            break
+
                 name = owner["name"] if owner else _person_from_name(co["name"])
                 source_kind = "web" if owner else ("name" if name else None)
                 if not name:
