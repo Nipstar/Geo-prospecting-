@@ -14,7 +14,7 @@ import re
 from urllib.parse import urlparse
 
 from .. import db
-from ..clients import apollo
+from ..clients import enrichment
 
 _TITLE_RANK = [
     "OWNER", "BROKER OWNER", "MANAGING BROKER", "BROKER", "FOUNDER",
@@ -70,6 +70,8 @@ def run_apollo_enrich(limit: int = 25, state: str | None = None,
                       dry_run: bool = False) -> dict[str, int]:
     conn = db.get_connection()
     db.ensure_person_contact(conn)
+    prov = enrichment.provider()
+    prov_name = enrichment.provider_name()
 
     where = ["c.website IS NOT NULL AND c.website <> ''",
              "NOT EXISTS (SELECT 1 FROM people p WHERE p.company_id=c.id AND p.name IS NOT NULL)"]
@@ -93,7 +95,7 @@ def run_apollo_enrich(limit: int = 25, state: str | None = None,
                 no_domain += 1
                 continue
             try:
-                people = apollo.search_owner(domain)
+                people = prov.search_owner(domain)
             except Exception as exc:  # noqa: BLE001
                 errors += 1
                 print(f"  ! {co['name']}: search error ({exc})")
@@ -116,7 +118,7 @@ def run_apollo_enrich(limit: int = 25, state: str | None = None,
             # Reveal a verified email if the search didn't include one.
             if reveal_email and not email and best.get("first_name") and best.get("last_name"):
                 try:
-                    m = apollo.match_person(best["first_name"], best["last_name"], domain)
+                    m = prov.match_person(best["first_name"], best["last_name"], domain)
                     if m:
                         email = _valid_email(m) or email
                         phone = phone or _phone(m)
@@ -132,7 +134,7 @@ def run_apollo_enrich(limit: int = 25, state: str | None = None,
                 continue
             db.insert_person(conn, company_id=co["id"], name=name, role=title,
                              linkedin_url=linkedin, email=email, phone=phone,
-                             person_source="apollo")
+                             person_source=prov_name)
             added += 1
         if not dry_run:
             conn.commit()
