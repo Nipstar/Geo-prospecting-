@@ -41,6 +41,17 @@ PROSPEO_API_KEY = os.getenv("PROSPEO_API_KEY", "")
 ENRICH_PROVIDER = os.getenv("ENRICH_PROVIDER", "apollo").strip().lower()
 COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
 STANNP_API_KEY = os.getenv("STANNP_API_KEY", "")
+# PostGrid Print & Mail (letters, UK + US). Test key sandboxes everything.
+POSTGRID_API_KEY = os.getenv("POSTGRID_API_KEY", "")
+# Return/sender address stamped on outgoing letters (Antek Automation).
+POSTGRID_FROM = {
+    "company": os.getenv("POSTGRID_FROM_COMPANY", "Antek Automation"),
+    "line1": os.getenv("POSTGRID_FROM_LINE1", ""),
+    "line2": os.getenv("POSTGRID_FROM_LINE2", ""),
+    "city": os.getenv("POSTGRID_FROM_CITY", "Andover"),
+    "postal": os.getenv("POSTGRID_FROM_POSTCODE", ""),
+    "country": os.getenv("POSTGRID_FROM_COUNTRY", "GB"),
+}
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "")
 CLAIM_BASE_URL = os.getenv("CLAIM_BASE_URL", "https://antek.link").rstrip("/")
