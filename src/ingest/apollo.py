@@ -118,7 +118,8 @@ def run_apollo_enrich(limit: int = 25, state: str | None = None,
             # Reveal a verified email if the search didn't include one.
             if reveal_email and not email and best.get("first_name") and best.get("last_name"):
                 try:
-                    m = prov.match_person(best["first_name"], best["last_name"], domain)
+                    m = prov.match_person(best["first_name"], best["last_name"],
+                                          domain, person=best)
                     if m:
                         email = _valid_email(m) or email
                         phone = phone or _phone(m)

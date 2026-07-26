@@ -51,8 +51,11 @@ def search_owner(domain: str, per_page: int = 5) -> list[dict[str, Any]]:
 
 
 def match_person(first_name: str, last_name: str, domain: str,
-                 reveal_email: bool = True) -> dict[str, Any] | None:
-    """People Enrichment — reveal a verified work email for one person."""
+                 reveal_email: bool = True,
+                 person: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """People Enrichment — reveal a verified work email for one person.
+    `person` is accepted for provider-surface parity (Prospeo uses it); Apollo
+    matches on name + domain and ignores it."""
     payload = {
         "first_name": first_name,
         "last_name": last_name,
