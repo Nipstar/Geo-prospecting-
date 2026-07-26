@@ -25,6 +25,28 @@ from .. import config
 BASE = "https://api.postgrid.com/print-mail/v1"
 
 
+class PostGridError(RuntimeError):
+    """Carries PostGrid's stable error.type + human message (e.g.
+    invalid_api_key_error, org_missing_payment_method_error, limit_reached_error)."""
+
+    def __init__(self, status: int, type_: str, message: str):
+        self.status = status
+        self.type = type_
+        self.message = message
+        super().__init__(f"[{status} {type_}] {message}")
+
+
+def _check(resp: requests.Response) -> dict[str, Any]:
+    if resp.status_code >= 400:
+        try:
+            err = resp.json().get("error", {}) or {}
+        except Exception:  # noqa: BLE001
+            err = {}
+        raise PostGridError(resp.status_code, err.get("type", "http_error"),
+                            err.get("message", resp.text[:200]))
+    return resp.json()
+
+
 def _headers(idempotency_key: str | None = None) -> dict[str, str]:
     if not config.POSTGRID_API_KEY:
         raise RuntimeError("POSTGRID_API_KEY is not set.")
@@ -57,8 +79,7 @@ def _contact(addr: dict[str, Any]) -> dict[str, Any]:
 def create_contact(addr: dict[str, Any]) -> str:
     resp = requests.post(f"{BASE}/contacts", json=_contact(addr),
                          headers=_headers(), timeout=30)
-    resp.raise_for_status()
-    return resp.json()["id"]
+    return _check(resp)["id"]
 
 
 def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
@@ -89,21 +110,18 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
         payload.update(extra)
     resp = requests.post(f"{BASE}/letters", json=payload,
                          headers=_headers(idempotency_key), timeout=60)
-    resp.raise_for_status()
-    return resp.json()
+    return _check(resp)
 
 
 def get_letter(order_id: str) -> dict[str, Any]:
     resp = requests.get(f"{BASE}/letters/{order_id}", headers=_headers(), timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    return _check(resp)
 
 
 def cancel_letter(order_id: str) -> dict[str, Any]:
     """Cancel a letter while it is still in `ready` status."""
     resp = requests.delete(f"{BASE}/letters/{order_id}", headers=_headers(), timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    return _check(resp)
 
 
 def is_test_key() -> bool:
