@@ -63,6 +63,7 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
                   *, color: bool = False, double_sided: bool = False,
                   address_placement: str = "insert_blank_page",
                   size: str | None = None,
+                  mailing_class: str | None = None,
                   extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create (queue) a letter. `to`/`from_addr` may be our address dicts or an
     existing PostGrid contact id string. `html` may contain {{merge}} vars."""
@@ -78,6 +79,8 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
         payload["mergeVariables"] = merge
     if size:
         payload["size"] = size          # e.g. "a4" for UK, "us_letter" for US
+    if mailing_class:
+        payload["mailingClass"] = mailing_class   # default: first_class (fastest)
     if extra:
         payload.update(extra)
     resp = requests.post(f"{BASE}/letters", json=payload,
