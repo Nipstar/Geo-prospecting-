@@ -32,5 +32,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[tool.hatch.metadata]
+# Required because a dependency uses a direct git reference
+# (antek-geo-core @ git+https://github.com/Nipstar/Geo-core).
+allow-direct-references = true
+
 [tool.uv]
 package = true
