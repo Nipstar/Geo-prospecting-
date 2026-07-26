@@ -180,6 +180,15 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
     # nothing to plain requests. `fetch(url)` transparently uses it when on.
     _pw = _browser = _page = None
     if render_js:
+        import os
+        # The container images ship a read-only /ms-playwright whose chromium
+        # build may not match our pinned Playwright (index max is 1.61 → build
+        # 1228; some images pre-bake a newer build). `playwright install
+        # chromium` puts a build-matched browser in the writable shared cache;
+        # prefer that so the launch does not fail on a missing executable.
+        _shared = os.path.expanduser("~/.cache/ms-playwright")
+        if os.path.isdir(_shared):
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _shared
         from playwright.sync_api import sync_playwright
         _pw = sync_playwright().start()
         _browser = _pw.chromium.launch(headless=True)
