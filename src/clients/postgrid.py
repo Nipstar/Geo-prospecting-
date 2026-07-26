@@ -82,9 +82,11 @@ def create_contact(addr: dict[str, Any]) -> str:
     return _check(resp)["id"]
 
 
-def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
+def create_letter(to: dict[str, Any], from_addr: dict[str, Any],
+                  html: str | None = None,
                   merge: dict[str, Any] | None = None,
-                  *, color: bool = False, double_sided: bool = False,
+                  *, template: str | None = None,
+                  color: bool = False, double_sided: bool = False,
                   address_placement: str = "insert_blank_page",
                   size: str | None = None,
                   mailing_class: str | None = None,
@@ -93,14 +95,16 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
                   extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create (queue) a letter. `to`/`from_addr` may be our address dicts or an
     existing PostGrid contact id string. `html` may contain {{merge}} vars."""
+    if not (html or template):
+        raise ValueError("create_letter needs either html or a portal template id.")
     payload: dict[str, Any] = {
         "to": to if isinstance(to, str) else _contact(to),
         "from": from_addr if isinstance(from_addr, str) else _contact(from_addr),
-        "html": html,
         "color": color,
         "doubleSided": double_sided,
         "addressPlacement": address_placement,
     }
+    payload["template" if template else "html"] = template or html
     if merge:
         payload["mergeVariables"] = merge
     if size:
