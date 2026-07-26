@@ -25,11 +25,14 @@ from .. import config
 BASE = "https://api.postgrid.com/print-mail/v1"
 
 
-def _headers() -> dict[str, str]:
+def _headers(idempotency_key: str | None = None) -> dict[str, str]:
     if not config.POSTGRID_API_KEY:
         raise RuntimeError("POSTGRID_API_KEY is not set.")
-    return {"x-api-key": config.POSTGRID_API_KEY,
-            "Content-Type": "application/json"}
+    h = {"x-api-key": config.POSTGRID_API_KEY, "Content-Type": "application/json"}
+    if idempotency_key:
+        # Safe retries — PostGrid returns the original order, never a duplicate.
+        h["Idempotency-Key"] = idempotency_key
+    return h
 
 
 def _contact(addr: dict[str, Any]) -> dict[str, Any]:
@@ -64,6 +67,7 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
                   address_placement: str = "insert_blank_page",
                   size: str | None = None,
                   mailing_class: str | None = None,
+                  idempotency_key: str | None = None,
                   extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create (queue) a letter. `to`/`from_addr` may be our address dicts or an
     existing PostGrid contact id string. `html` may contain {{merge}} vars."""
@@ -84,13 +88,20 @@ def create_letter(to: dict[str, Any], from_addr: dict[str, Any], html: str,
     if extra:
         payload.update(extra)
     resp = requests.post(f"{BASE}/letters", json=payload,
-                         headers=_headers(), timeout=60)
+                         headers=_headers(idempotency_key), timeout=60)
     resp.raise_for_status()
     return resp.json()
 
 
 def get_letter(order_id: str) -> dict[str, Any]:
     resp = requests.get(f"{BASE}/letters/{order_id}", headers=_headers(), timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def cancel_letter(order_id: str) -> dict[str, Any]:
+    """Cancel a letter while it is still in `ready` status."""
+    resp = requests.delete(f"{BASE}/letters/{order_id}", headers=_headers(), timeout=30)
     resp.raise_for_status()
     return resp.json()
 
