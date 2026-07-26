@@ -36,9 +36,14 @@ _COMPANY_WORDS = re.compile(
     r"solutions?|services?|realtors?)\b", re.I)
 _GENERIC_LOCAL = {"info", "contact", "admin", "hello", "office", "sales",
                   "team", "support", "help", "enquiries", "inquiries", "mail"}
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 _EMAIL_JUNK = re.compile(r"\.(png|jpg|jpeg|gif|svg|webp)$|sentry|wixpress|"
-                         r"example\.com|@(?:sentry|godaddy|squarespace)", re.I)
+                         r"example\.(com|org)|domain\.com|@(?:sentry|godaddy|squarespace|sentry\.io)|"
+                         r"\.(wixpress|w3\.org)", re.I)
+# Placeholder local-parts that appear in theme demos, never real contacts.
+_EMAIL_PLACEHOLDER = {"sample", "your", "youremail", "name", "yourname", "email",
+                      "test", "firstname", "lastname", "john", "jane", "user",
+                      "example", "demo", "noreply", "no-reply"}
 
 
 def _domain(website: str | None) -> str | None:
@@ -115,8 +120,11 @@ def _emails(htmls: list[str]) -> list[str]:
     out: list[str] = []
     seen = set()
     for e in found:
-        e = e.strip().lower()
-        if e in seen or _EMAIL_JUNK.search(e):
+        # Strip URL-encoding tails and trailing punctuation/quotes/backslashes.
+        e = e.strip().lower().split("?")[0].rstrip("\\\"'<>).,;:")
+        if not _EMAIL_RE.match(e) or e in seen or _EMAIL_JUNK.search(e):
+            continue
+        if e.split("@")[0] in _EMAIL_PLACEHOLDER:
             continue
         seen.add(e)
         out.append(e)
