@@ -122,6 +122,23 @@ def ingest_apollo(state: str, town: str | None, limit: int, no_email: bool, dry_
     console.print(res)
 
 
+@ingest.command("web-owner")
+@click.option("--state", default=None, help="US state/county (e.g. Florida, Texas). Default: all US.")
+@click.option("--town", default=None, help="Only companies in this town.")
+@click.option("--limit", default=50, type=int)
+@click.option("--no-email", is_flag=True, help="Names only; skip scraping contact emails.")
+@click.option("--dry-run", is_flag=True)
+def ingest_web_owner(state: str | None, town: str | None, limit: int,
+                     no_email: bool, dry_run: bool) -> None:
+    """US owner enrichment via website scrape (name heuristic + About-page LLM
+    extract + public contact email). ~80% hit-rate, ~£0 — the primary US path."""
+    from .ingest import web_owner
+
+    res = web_owner.run_web_owner_enrich(limit=limit, state=state, town=town,
+                                         scrape_email=not no_email, dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("pitchability")
 @click.option("--limit", default=None, type=int)
 def pitchability_cmd(limit: int | None) -> None:

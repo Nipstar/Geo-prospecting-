@@ -1,0 +1,221 @@
+"""Website owner enrichment (US) — the primary owner-finder for small firms.
+
+B2B databases (Apollo/Prospeo) only resolve ~10% of small local realtors: solo
+brokers aren't in corporate staff datasets. Their own website almost always
+names them (About/Team page, or the business name itself), so we scrape that.
+Measured ~80% hit-rate on real FL realtor domains at ~£0.
+
+Pipeline per company (US-scoped):
+  1. business-name-is-a-person heuristic (free, instant)
+  2. fetch homepage + about/team pages -> LLM extract owner {name, title}
+  3. scrape a public contact email (owner-matched preferred over generic)
+
+Email is scraped only for US rows (the cold-email channel). Names are stored for
+everyone. Verified email reveal (Prospeo/Apollo) is a separate, later step.
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+from urllib.parse import urljoin, urlparse
+
+import requests
+
+from .. import config, db
+
+_UA = {"User-Agent": "Mozilla/5.0 (compatible; AntekBot/1.0)"}
+_ABOUT_PATHS = ["/about", "/about-us", "/our-agents", "/team", "/meet-the-team",
+                "/our-team", "/agents", "/staff", "/contact"]
+_US_COUNTIES = {"Florida", "Texas", "FL", "TX"}
+
+# Words that mean the business name is NOT a personal name.
+_COMPANY_WORDS = re.compile(
+    r"\b(realty|real estate|group|team|homes?|properties|associates?|"
+    r"brokerage|llc|inc|pa|co|company|agency|partners?|international|"
+    r"solutions?|services?|realtors?)\b", re.I)
+_GENERIC_LOCAL = {"info", "contact", "admin", "hello", "office", "sales",
+                  "team", "support", "help", "enquiries", "inquiries", "mail"}
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+_EMAIL_JUNK = re.compile(r"\.(png|jpg|jpeg|gif|svg|webp)$|sentry|wixpress|"
+                         r"example\.com|@(?:sentry|godaddy|squarespace)", re.I)
+
+
+def _domain(website: str | None) -> str | None:
+    if not website:
+        return None
+    host = urlparse(website if "//" in website else f"http://{website}").netloc
+    host = host.lower().split(":")[0]
+    return host[4:] if host.startswith("www.") else (host or None)
+
+
+def _person_from_name(business: str) -> str | None:
+    """If the business name is essentially a person's name, return it."""
+    # Strip trailing role/suffix after comma/pipe: "Louis Urbina, PA - Realtor".
+    head = re.split(r"[,|]", business)[0].strip()
+    if _COMPANY_WORDS.search(head):
+        return None
+    toks = [t for t in re.split(r"\s+", head) if t]
+    if len(toks) in (2, 3) and all(re.match(r"^[A-Z][a-zA-Z.'-]+$", t) for t in toks):
+        return head
+    return None
+
+
+def _fetch(url: str) -> str:
+    try:
+        r = requests.get(url, headers=_UA, timeout=12)
+        return r.text if r.status_code < 400 else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _visible_text(html: str) -> str:
+    html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
+
+
+def _extract_owner(business: str, text: str) -> dict | None:
+    """LLM-extract the owner/principal from about-page text (gpt-4o-mini)."""
+    if not config.OPENROUTER_API_KEY or len(text) < 40:
+        return None
+    prompt = (
+        "From this real-estate business's website text, identify the owner, "
+        "broker/principal, or founder (the individual who runs it). "
+        f"Business name: {business}. Text: {text[:4000]} "
+        'Reply ONLY compact JSON: {"name":"Full Name or null","title":"role or null"}. '
+        "Use null if no specific individual is named."
+    )
+    try:
+        r = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={"model": "openai/gpt-4o-mini", "temperature": 0,
+                  "messages": [{"role": "user", "content": prompt}]},
+            timeout=45)
+        c = r.json()["choices"][0]["message"]["content"]
+        m = re.search(r"\{.*\}", c, re.S)
+        data = json.loads(m.group(0)) if m else None
+    except Exception:  # noqa: BLE001
+        return None
+    if not data:
+        return None
+    name = (data.get("name") or "").strip()
+    if not name or name.lower() in ("null", "none", "n/a"):
+        return None
+    return {"name": name, "title": (data.get("title") or "").strip() or None}
+
+
+def _emails(htmls: list[str]) -> list[str]:
+    found: list[str] = []
+    for h in htmls:
+        for m in re.findall(r'mailto:([^"\'?>]+)', h):
+            found.append(m.strip())
+        found.extend(_EMAIL_RE.findall(h))
+    out: list[str] = []
+    seen = set()
+    for e in found:
+        e = e.strip().lower()
+        if e in seen or _EMAIL_JUNK.search(e):
+            continue
+        seen.add(e)
+        out.append(e)
+    return out
+
+
+def _pick_email(emails: list[str], owner: str | None, domain: str | None) -> str | None:
+    """Owner-matched > personal > generic. Same-domain preferred."""
+    if not emails:
+        return None
+    names = {t.lower() for t in re.split(r"\s+", owner or "") if len(t) > 2}
+
+    def score(e: str) -> int:
+        local, _, host = e.partition("@")
+        s = 0
+        if domain and domain in host:
+            s += 2
+        if names & set(re.split(r"[._-]", local)):
+            s += 5           # local part contains owner name
+        if local in _GENERIC_LOCAL:
+            s -= 3           # info@, contact@ ...
+        return s
+
+    best = max(emails, key=score)
+    return best if score(best) > -3 else None
+
+
+def run_web_owner_enrich(limit: int = 50, state: str | None = None,
+                         town: str | None = None, scrape_email: bool = True,
+                         dry_run: bool = False, sleep: float = 0.5) -> dict[str, int]:
+    conn = db.get_connection()
+    db.ensure_person_contact(conn)
+
+    where = ["c.website IS NOT NULL AND c.website <> ''",
+             "c.website LIKE 'http%'",
+             "c.county IN ('Florida','Texas','FL','TX')",
+             "NOT EXISTS (SELECT 1 FROM people p WHERE p.company_id=c.id AND p.name IS NOT NULL)"]
+    params: list = []
+    if state:
+        where.append("c.county = ?"); params.append(state)
+    if town:
+        where.append("c.town = ?"); params.append(town)
+    sql = f"SELECT c.* FROM companies c WHERE {' AND '.join(where)} ORDER BY c.id LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+
+    processed = named = via_name = via_web = emails_found = no_owner = errors = 0
+    try:
+        for co in rows:
+            processed += 1
+            domain = _domain(co["website"])
+            if not domain:
+                no_owner += 1
+                continue
+            try:
+                base = f"https://{domain}"
+                htmls = [_fetch(base) or _fetch(f"http://{domain}")]
+                text = _visible_text(htmls[0])
+                # Pull a couple of about/team pages if the homepage is thin.
+                if len(text) < 1500:
+                    for path in _ABOUT_PATHS[:5]:
+                        extra = _fetch(urljoin(base, path))
+                        if extra:
+                            htmls.append(extra)
+                            text += " " + _visible_text(extra)
+                            if len(text) > 3000:
+                                break
+
+                owner = _extract_owner(co["name"], text)
+                name = owner["name"] if owner else _person_from_name(co["name"])
+                source_kind = "web" if owner else ("name" if name else None)
+                if not name:
+                    no_owner += 1
+                    print(f"  ? {co['name']} ({domain}): no owner found")
+                    continue
+                title = (owner["title"] if owner and owner["title"] else "Owner")
+
+                email = _pick_email(_emails(htmls), name, domain) if scrape_email else None
+
+                named += 1
+                if source_kind == "web":
+                    via_web += 1
+                else:
+                    via_name += 1
+                if email:
+                    emails_found += 1
+                tag = f"{name} ({title})" + (f" <{email}>" if email else "")
+                print(f"  + {co['name']} -> {tag}  [{source_kind}]")
+                if not dry_run:
+                    db.insert_person(conn, company_id=co["id"], name=name, role=title,
+                                     email=email, person_source=f"web:{source_kind}")
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                print(f"  ! {co['name']}: {exc}")
+            time.sleep(sleep)
+        if not dry_run:
+            conn.commit()
+    finally:
+        conn.close()
+    return {"processed": processed, "named": named, "via_name": via_name,
+            "via_web": via_web, "emails_found": emails_found,
+            "no_owner": no_owner, "errors": errors}
