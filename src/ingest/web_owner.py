@@ -273,10 +273,22 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                 tag = f"{name} ({title})" + (f" <{email}>" if email else "")
                 print(f"  + {co['name']} -> {tag}  [{source_kind}]")
                 if not dry_run:
-                    db.insert_person(conn, company_id=co["id"], name=name, role=title,
-                                     email=email, person_source=f"web:{source_kind}")
-                    conn.commit()  # commit per-company: progress is durable and
-                                   # the run is resumable (re-query skips named cos)
+                    # Re-check right before inserting — the batch was fetched
+                    # once at the top of the run, so a concurrent/overlapping
+                    # enrichment process (e.g. two chunks launched by mistake)
+                    # can name the same company in between. This point-of-
+                    # insert check shrinks that race window and stops the
+                    # duplicate person rows it was producing.
+                    already = conn.execute(
+                        "SELECT 1 FROM people WHERE company_id=? AND name IS NOT NULL LIMIT 1",
+                        (co["id"],)).fetchone()
+                    if already:
+                        print(f"    (skip insert — {co['name']} already named by another run)")
+                    else:
+                        db.insert_person(conn, company_id=co["id"], name=name, role=title,
+                                         email=email, person_source=f"web:{source_kind}")
+                        conn.commit()  # commit per-company: progress is durable and
+                                       # the run is resumable (re-query skips named cos)
             except Exception as exc:  # noqa: BLE001
                 errors += 1
                 print(f"  ! {co['name']}: {exc}")
