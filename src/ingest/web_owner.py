@@ -122,10 +122,20 @@ def _extract_owner(business: str, text: str) -> dict | None:
     name = (data.get("name") or "").strip()
     if not name or name.lower() in ("null", "none", "n/a"):
         return None
-    # Require a real full name (first + last), not a bare surname or label.
-    if len([t for t in re.split(r"\s+", name) if len(t) > 1]) < 2:
+    # Reject if the model wrote a real name plus a literal "null"/"none" token
+    # for the part it didn't know (e.g. "Laura null") — the whole-string check
+    # above only catches an all-null value, not this partial-hallucination case.
+    _junk_tokens = {"null", "none", "n/a", "na", "unknown", "undefined"}
+    tokens = [t for t in re.split(r"\s+", name) if len(t) > 1]
+    if any(t.lower() in _junk_tokens for t in tokens):
         return None
-    return {"name": name, "title": (data.get("title") or "").strip() or None}
+    # Require a real full name (first + last), not a bare surname or label.
+    if len(tokens) < 2:
+        return None
+    title = (data.get("title") or "").strip()
+    if title.lower() in _junk_tokens:
+        title = ""
+    return {"name": name, "title": title or None}
 
 
 def _emails(htmls: list[str]) -> list[str]:
