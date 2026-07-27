@@ -9,7 +9,7 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .. import config, db, llm
+from .. import config, db, franchises, llm
 from . import voice
 
 USER_TEMPLATE = """Draft a 3-touch LinkedIn sequence for this prospect.
@@ -185,20 +185,27 @@ def draft_batch(status: str = "checked", limit: int = 10) -> list[dict]:
     """Draft sequences for people whose company is at a given status and who
     have a LinkedIn URL (linkedin channel)."""
     conn = db.get_connection()
-    person_ids: list[int] = []
+    people: list[tuple[int, str]] = []
     try:
         rows = conn.execute(
-            """SELECT p.id FROM people p JOIN companies c ON c.id = p.company_id
+            """SELECT p.id, c.name AS company_name FROM people p
+               JOIN companies c ON c.id = p.company_id
                WHERE c.status = ? AND c.channel = 'linkedin'
                  AND p.linkedin_url IS NOT NULL AND p.linkedin_url != ''
                ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?""",
             (status, limit),
         ).fetchall()
-        person_ids = [r["id"] for r in rows]
+        people = [(r["id"], r["company_name"]) for r in rows]
     finally:
         conn.close()
     results = []
-    for pid in person_ids:
+    for pid, company_name in people:
+        # Defensive check — franchises are diverted at routing, but this
+        # guards against stale channel data (see letter.py's post-channel
+        # equivalent). Standing rule: never message a franchise office.
+        if franchises.is_franchise(company_name):
+            print(f"  x skip (franchise): {company_name}")
+            continue
         try:
             results.append(draft_sequence(pid))
         except Exception as exc:  # noqa: BLE001
