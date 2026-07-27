@@ -93,8 +93,9 @@ def _parse_address(reg: str | None) -> dict | None:
 
 def _contact(co, addr: dict) -> dict:
     out = dict(addr)
-    # Title-case company name only if it is ALL CAPS (Companies House style)
-    name = co["name"]
+    # Strip Places-listing marketing taglines (letter_mod.clean_display_name),
+    # then title-case only if the remainder is ALL CAPS (Companies House style)
+    name = letter_mod.clean_display_name(co["name"])
     out["company"] = _title_addr(name) if name == name.upper() else name
     return out
 
@@ -151,7 +152,7 @@ def run_postgrid_send(limit: int = 25, campaign: str = "geo-1",
                 # with white-space:pre-line in the template.  PostGrid uppercases
                 # {{to.*}} standard vars for postal compliance so we avoid them in
                 # the letter body and use this custom var instead.
-                co_name = (co["name"] or "").strip()
+                co_name = letter_mod.clean_display_name(co["name"] or "").strip()
                 addr_name = (meta.get("addressee") or "").strip()
                 co_name_fmt = _title_addr(co_name) if co_name == co_name.upper() else co_name
                 # Suppress company line when it IS the named person (sole trader)

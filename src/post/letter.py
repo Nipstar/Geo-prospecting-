@@ -120,6 +120,29 @@ def _salutation(full_name: str) -> str:
     return f"{title} {surname}" if title else "Sir or Madam"
 
 
+def clean_display_name(raw: str) -> str:
+    """Strip Google-Places-style marketing taglines off a recipient-facing
+    business name, keeping the real name/brand.
+
+    Places listing titles often stack the actual business name with SEO
+    taglines and brokerage affiliations behind a pipe or slash separator,
+    e.g. "Alena Nicole Kolyadchik, LLC / English - Russian speaking
+    Realtor(R) in Orlando" or "David Freed Realtor | Miami Is Home | Keller
+    Williams Realty". Truncating at the FIRST " | " or " / " (spaced, so it
+    never touches a brand's own slash like "RE/MAX") keeps the real name and
+    drops the tail — safe against every case checked in the FL dataset.
+    """
+    name = (raw or "").strip()
+    if not name:
+        return name
+    for sep in (" | ", " / "):
+        if sep in name:
+            first = name.split(sep, 1)[0].strip()
+            if len(first) >= 4:      # don't truncate down to near-nothing
+                name = first
+    return name
+
+
 def _opener(company, check, sector_word: str) -> str:
     """A clean, grammatical opening finding built from the data (not the terse
     mini-check headline)."""
@@ -127,12 +150,13 @@ def _opener(company, check, sector_word: str) -> str:
     mentioned = check["platforms_mentioned"] or 0
     tested = check["platforms_tested"] or 0
     comp = (check["competitor_named"] or "").split(",")[0].strip()
+    name = clean_display_name(company["name"])
     if mentioned == 0:
         line = (f"When people in {town} ask an AI tool like ChatGPT for a {sector_word}, "
-                f"{company['name']} does not appear at all across the {tested} engines I checked")
+                f"{name} does not appear at all across the {tested} engines I checked")
     else:
         line = (f"When people in {town} ask an AI tool like ChatGPT for a {sector_word}, "
-                f"{company['name']} appears in only {mentioned} of the {tested} engines I checked")
+                f"{name} appears in only {mentioned} of the {tested} engines I checked")
     line += f", while {comp} appears in more of them." if comp else "."
     return line
 

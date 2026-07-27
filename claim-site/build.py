@@ -28,6 +28,7 @@ from markupsafe import Markup  # noqa: E402
 from src import db  # noqa: E402
 from src.visibility import prompts  # noqa: E402
 from src.config import FREE_CHECK_QUERIES  # noqa: E402
+from src.post.letter import clean_display_name  # noqa: E402
 from src.visibility.report import slugify  # noqa: E402
 
 ENGINES = [
@@ -196,20 +197,26 @@ def build(status: str | None, limit: int) -> list[str]:
         competitors = v["competitor_named"] or ""
         comp_list = [c.strip() for c in competitors.split(",") if c.strip()]
         top_competitor = comp_list[0] if comp_list else ""
+        # Strip Places-listing marketing taglines (e.g. "X, LLC / English -
+        # Russian speaking Realtor(R) in Orlando" -> "X, LLC") before using the
+        # name for display OR AI-response matching — the raw tagline text
+        # never appears verbatim in an AI answer, so matching on it under-
+        # counts real mentions as well as looking bad on the page.
+        firm_display = clean_display_name(co["name"])
         quotes = _quotes(conn, prompts.build_queries(co, limit=FREE_CHECK_QUERIES),
-                         firm=co["name"], comps=comp_list)
+                         firm=firm_display, comps=comp_list)
         rivals_named = sum(1 for q in quotes if not q["appears"])
         sw = SECTOR_WORD.get(sector, sector or "firm")
         rival_chips = _rival_chips(" ".join(q["raw"] for q in quotes),
-                                   co["name"], co["town"] or "")
+                                   firm_display, co["town"] or "")
         town_d = co["town"] or "your area"
         mentioned = v["platforms_mentioned"] or 0
         # Stakes line — frames the score as lost enquiries (funnel: shows WHAT, not HOW).
         if mentioned == 0:
             stakes = (f"When someone in {town_d} asks ChatGPT, Gemini or Perplexity for a "
-                      f"{sw}, {co['name']} does not come up at all.")
+                      f"{sw}, {firm_display} does not come up at all.")
         else:
-            stakes = (f"{co['name']} shows up on {mentioned} of {v['platforms_tested']} AI "
+            stakes = (f"{firm_display} shows up on {mentioned} of {v['platforms_tested']} AI "
                       f"engines — but that still leaves gaps a competitor is filling.")
         if top_competitor:
             stakes += f" {top_competitor} appears where you don't, and those enquiries go to them."
@@ -219,7 +226,7 @@ def build(status: str | None, limit: int) -> list[str]:
         if top_competitor:
             gaps.append(f"{top_competitor} is the firm AI names instead of you")
         html = tpl.render(
-            firm=co["name"], town=town_d,
+            firm=firm_display, town=town_d,
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
             rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
             phone=co["phone"] or "", director=director,
@@ -244,7 +251,8 @@ def build(status: str | None, limit: int) -> list[str]:
                          (co["id"],)).fetchone()
         comp_str = v["competitor_named"] or ""
         comp_list = [c.strip() for c in comp_str.split(",") if c.strip()]
-        core = _core_name(co["name"]).lower()
+        firm_display = clean_display_name(co["name"])
+        core = _core_name(firm_display).lower()
         # THIS company's queries only — look each up in the probe cache.
         by_query: dict[str, dict] = {}
         for q in prompts.build_queries(co):
@@ -257,14 +265,14 @@ def build(status: str | None, limit: int) -> list[str]:
         for q, engs in by_query.items():
             elist = []
             for ekey, resp in engs.items():
-                appears = bool(resp) and (core in resp.lower() or co["name"].lower() in resp.lower())
+                appears = bool(resp) and (core in resp.lower() or firm_display.lower() in resp.lower())
                 elist.append({"label": ENGINE_LABEL.get(ekey, ekey),
                               "appears": appears,
-                              "html": _highlight(resp, co["name"], comp_list)})
+                              "html": _highlight(resp, firm_display, comp_list)})
             questions.append({"query": q, "engines": elist})
         sector = (co["sector"] or "").lower()
         rhtml = report_tpl.render(
-            firm=co["name"], town=co["town"] or "your area",
+            firm=firm_display, town=co["town"] or "your area",
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
             rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
             score=int(round(v["composite_score"])), mentioned=v["platforms_mentioned"], tested=v["platforms_tested"],
