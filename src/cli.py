@@ -109,6 +109,22 @@ def ingest_sunbiz(state: str, limit: int, dry_run: bool) -> None:
     console.print(res)
 
 
+@ingest.command("dbpr")
+@click.option("--limit", default=25, type=int)
+@click.option("--dry-run", is_flag=True, help="Preview matches without writing.")
+def ingest_dbpr(limit: int, dry_run: bool) -> None:
+    """Florida DBPR real-estate licensee enrichment (free, public register).
+
+    Verifies/derives the licensed owner's legal name for FL real-estate
+    companies via the MyFloridaLicense registry. The most reliable US owner
+    source for this ICP. Falls back to 'The Owner' when nothing matches.
+    """
+    from .ingest import dbpr
+
+    res = dbpr.run_dbpr_enrich(limit=limit, dry_run=dry_run)
+    console.print(res)
+
+
 @ingest.command("linkedin")
 @click.option("--town", default=None, help="Only companies in this town.")
 @click.option("--limit", default=25, type=int)
