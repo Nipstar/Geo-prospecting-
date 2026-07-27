@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from .. import db
+from .. import db, franchises
 
 # Companies with no LinkedIn person are held this many days before routing to
 # post, matching the "no LinkedIn presence within 7 days" rule.
@@ -33,9 +33,17 @@ def _days_in_pipeline(company) -> int:
 
 
 def route_all(dry_run: bool = False, force: bool = False) -> dict[str, int]:
-    """Route every unrouted active company. force ignores the grace period."""
+    """Route every unrouted active company. force ignores the grace period.
+
+    Franchise offices (Keller Williams, RE/MAX, Coldwell Banker, eXp...) are
+    never routed to any channel — standing rule is to skip them entirely in
+    prospecting, not just at the owner-enrichment step. Without this check a
+    franchise office that happened to get a name some other way (the
+    business-name-is-a-person heuristic, a team page, DBPR) would still slip
+    through to a lettered/DM'd channel.
+    """
     conn = db.get_connection()
-    linkedin = post = held = 0
+    linkedin = post = held = skipped_franchise = 0
     try:
         rows = conn.execute(
             "SELECT * FROM companies WHERE channel IS NULL "
@@ -44,6 +52,13 @@ def route_all(dry_run: bool = False, force: bool = False) -> dict[str, int]:
         for company in rows:
             if company["ch_status"] and company["ch_status"] not in ("active", "unmatched", None):
                 continue  # dissolved etc, leave unrouted
+            if franchises.is_franchise(company["name"]):
+                if dry_run:
+                    print(f"  {company['name']}: skip (franchise)")
+                else:
+                    db.update_company(conn, company["id"], channel="excluded_franchise")
+                skipped_franchise += 1
+                continue
             if _has_linkedin_person(conn, company["id"]):
                 channel = "linkedin"
             elif force or _days_in_pipeline(company) >= POST_GRACE_DAYS:
@@ -61,4 +76,5 @@ def route_all(dry_run: bool = False, force: bool = False) -> dict[str, int]:
                 post += 1
     finally:
         conn.close()
-    return {"linkedin": linkedin, "post": post, "held_for_grace": held}
+    return {"linkedin": linkedin, "post": post, "held_for_grace": held,
+            "skipped_franchise": skipped_franchise}

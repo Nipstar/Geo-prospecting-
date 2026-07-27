@@ -15,7 +15,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .. import config, db
+from .. import config, db, franchises
 from ..reports import brand
 from ..visibility.report import slugify
 
@@ -382,6 +382,14 @@ def draft_letters_for_post(limit: int = 25, dry_run: bool = False,
             (max_score, limit),
         ).fetchall()
         for company in rows:
+            # Defensive last-line check — franchises should already be diverted
+            # at routing, but a franchise office can still end up with
+            # channel='post' from stale data or a name found some other way
+            # (business-name-is-a-person heuristic, DBPR). Standing rule is
+            # never to letter a franchise, so refuse here too.
+            if franchises.is_franchise(company["name"]):
+                print(f"  x skip (franchise): {company['name']}")
+                continue
             if dry_run:
                 print(f"  would draft letter: {company['name']}")
                 out.append({"company": company["name"]})
