@@ -265,6 +265,8 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
                 if not dry_run:
                     db.insert_person(conn, company_id=co["id"], name=name, role=title,
                                      email=email, person_source=f"web:{source_kind}")
+                    conn.commit()  # commit per-company: progress is durable and
+                                   # the run is resumable (re-query skips named cos)
             except Exception as exc:  # noqa: BLE001
                 errors += 1
                 print(f"  ! {co['name']}: {exc}")
