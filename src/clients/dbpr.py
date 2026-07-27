@@ -90,7 +90,18 @@ def _run_search(fill: dict[str, str]) -> list[dict[str, Any]]:
             for field, value in fill.items():
                 if value and pg.query_selector(f"input[name='{field}']"):
                     pg.fill(f"input[name='{field}']", value)
-            btn = pg.query_selector("button[name='Search1']") or pg.query_selector("button:has-text('Search')")
+            # Wait for the results-submit button (the ASP form can render slowly).
+            btn = None
+            for sel in ("button[name='Search1']", "button:has-text('Search')"):
+                try:
+                    pg.wait_for_selector(sel, timeout=6000)
+                    btn = pg.query_selector(sel)
+                    if btn:
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+            if not btn:
+                return []   # form didn't render — treat as no result, caller retries next run
             btn.click()
             pg.wait_for_load_state("domcontentloaded")
             pg.wait_for_timeout(2200)

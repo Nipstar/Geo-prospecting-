@@ -33,12 +33,30 @@ def _candidate_name(conn, company) -> str | None:
 
 
 def _surname(name: str) -> str:
-    toks = [t for t in name.replace(",", " ").split() if t]
+    """Surname from either 'LAST, FIRST MID' (DBPR) or 'First Last' (candidate)."""
+    n = name or ""
+    if "," in n:                       # DBPR format: surname is before the comma
+        head = n.split(",", 1)[0].strip()
+        toks = [t for t in head.split() if t]
+        return toks[-1].lower() if toks else ""
+    toks = [t for t in n.split() if t]  # "First Last": surname is the last token
     return toks[-1].lower() if toks else ""
 
 
+def _first(name: str) -> str:
+    """First forename token, lowercased. Handles 'LAST, FIRST' and 'First Last'."""
+    n = name or ""
+    if "," in n:
+        n = n.split(",", 1)[1]
+    toks = [t for t in n.split() if t]
+    return toks[0].lower() if toks else ""
+
+
 def _match(records: list[dict], candidate: str | None) -> dict | None:
-    """Pick the best active real-estate licensee from DBPR results."""
+    """Pick the best active real-estate licensee from DBPR results.
+
+    Match on surname (reliable); disambiguate on forename by prefix so
+    nicknames line up ("Matt" -> "Matthew", "Suzi" -> "Suzanne")."""
     re_recs = dbpr.real_estate_only(records)
     if not re_recs:
         return None
@@ -47,9 +65,18 @@ def _match(records: list[dict], candidate: str | None) -> dict | None:
     if candidate:
         cand_sur = _surname(candidate)
         same = [r for r in pool if _surname(r["name"]) == cand_sur]
-        if same:
-            return same[0]
-        return None  # candidate given but no surname match -> don't guess
+        if not same:
+            return None  # no surname match -> don't guess
+        cf = _first(candidate)
+        if cf:
+            # Require forename alignment (prefix, either direction) so nicknames
+            # line up ("Matt"~"Matthew") but a different person is never accepted.
+            pref = [r for r in same if _first(r["name"]).startswith(cf[:3])
+                    or cf.startswith(_first(r["name"])[:3])]
+            pref.sort(key=lambda r: (not r["is_active"],))
+            return pref[0] if pref else None
+        # no forename signal: only a lone surname match is safe
+        return same[0] if len(same) == 1 else None
     # no candidate: accept only an unambiguous single active match
     return active[0] if len(active) == 1 else None
 
@@ -75,8 +102,10 @@ def run_dbpr_enrich(state: str = "FL", limit: int = 25,
             try:
                 if candidate:
                     toks = candidate.replace(",", " ").split()
-                    last, first = toks[-1], (toks[0] if len(toks) > 1 else "")
-                    rec = _match(dbpr.search_name(last, first), candidate)
+                    last = toks[-1]
+                    # Search by SURNAME ONLY — DBPR forename search is exact and
+                    # trips on nicknames (Matt vs Matthew). Disambiguate in _match.
+                    rec = _match(dbpr.search_name(last), candidate)
                     kind = "verify"
                 else:
                     rec = _match(dbpr.search_org(co["name"]), None)
