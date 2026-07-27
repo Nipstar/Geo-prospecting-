@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Book your GEO Audit walkthrough — Antek Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1a1a1a; --panel:#1f1f1f; --line:#2f2f2f;
+    --coral:#ff5f3f; --coral-dk:#cd5c3c; --cream:#e8dcc8; --body:#f8f8f0;
+    --muted:#8f8880; --cyan:#9ff3ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',-apple-system,Segoe UI,Arial,sans-serif;color:var(--body);
+    background:var(--bg);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Outfit',Arial,sans-serif;font-weight:800;line-height:1.05;letter-spacing:-.01em;color:var(--cream)}
+  .wrap{max-width:780px;margin:0 auto;padding:24px 20px 64px}
+  .top{display:flex;align-items:center;gap:12px;padding:6px 0 4px}
+  .logo{width:34px;height:34px;flex:none}
+  .brand{font-family:'Outfit';font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--cream);font-size:20px}
+  .kicker{color:var(--coral);font-family:'JetBrains Mono';font-weight:700;text-transform:uppercase;letter-spacing:.18em;font-size:12px;margin-top:22px;display:block}
+  h1{font-size:32px;margin:8px 0 6px;text-transform:uppercase}
+  h1 .accent{color:var(--coral)}
+  .sub{color:var(--body);font-size:16px;max-width:60ch}
+  .sub strong{color:var(--cream)}
+  .cal-hint{font-size:12px;color:var(--muted);margin:22px 2px 0;font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:.06em}
+  .cal{border:1px solid var(--line);border-radius:10px;overflow:visible;background:#fff;min-height:660px;margin-top:6px}
+  .fallback{margin-top:18px;font-size:14px;color:var(--muted)}
+  .fallback a{color:var(--coral);font-weight:700}
+  .foot{font-size:13px;color:var(--muted);margin-top:30px;text-align:center;line-height:1.8;border-top:1px solid var(--line);padding-top:18px}
+  a{color:var(--coral)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <img class="logo" src="/logo.svg" alt="Antek Automation" width="34" height="34">
+    <span class="brand">Antek&nbsp;Automation</span>
+  </div>
+
+  <span class="kicker">GEO Audit · Book your call</span>
+  <h1>Let's walk through <span class="accent">your audit</span></h1>
+  <p class="sub">Pick a time below and we'll go through your GEO audit together —
+     which AI engines can't see you, which competitors show up instead, and the
+     <strong>2–3 changes</strong> that put you back in the answer. 30 minutes, no pitch.</p>
+
+  <div class="cal-hint">Pick a date, then scroll for available times ↓</div>
+  <div class="cal">
+    <div style="width:100%;min-height:660px" id="my-cal-inline-30min"></div>
+    <script type="text/javascript">
+      (function (C, A, L) { let p = function (a, ar) { a.q.push(ar); }; let d = C.document; C.Cal = C.Cal || function () { let cal = C.Cal; let ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement("script")).src = A; cal.loaded = true; } if (ar[0] === L) { const api = function () { p(api, arguments); }; const namespace = ar[1]; api.q = api.q || []; if(typeof namespace === "string"){cal.ns[namespace] = cal.ns[namespace] || api;p(cal.ns[namespace], ar);p(cal, ["initNamespace", namespace]);} else p(cal, ar); return;} p(cal, ar); }; })(window, "https://app.cal.com/embed/embed.js", "init");
+      Cal("init", "30min", {origin:"https://app.cal.com"});
+      Cal.ns["30min"]("inline", {
+        elementOrSelector:"#my-cal-inline-30min",
+        config: {"layout":"month_view"},
+        calLink: "{{ cal_link }}",
+      });
+      Cal.ns["30min"]("ui", {"hideEventTypeDetails":false,"layout":"month_view"});
+    </script>
+  </div>
+
+  <p class="fallback">Embed not loading? Book direct at
+     <a href="https://cal.com/{{ cal_link }}" target="_blank" rel="noopener">cal.com/{{ cal_link }}</a>.</p>
+
+  <div class="foot">
+    Antek&nbsp;Automation · Andover, Hampshire · antekautomation.com<br>
+    This page is private and not indexed.
+  </div>
+
+</div>
+</body>
+</html>

@@ -158,6 +158,17 @@ def build(status: str | None, limit: int) -> list[str]:
     logo = HERE / "logo.svg"
     if logo.exists():
         (dist / "logo.svg").write_bytes(logo.read_bytes())
+    # site-wide noindex headers (Cloudflare Pages reads /_headers at root)
+    headers = HERE / "_headers"
+    if headers.exists():
+        (dist / "_headers").write_bytes(headers.read_bytes())
+    # standalone non-indexed booking page -> dist/book/index.html
+    # Used as the CTA target on GEO Slab audit send-outs: just the Cal.com embed.
+    book_src = HERE / "book.html"
+    if book_src.exists():
+        book_html = Template(book_src.read_text()).render(cal_link=CAL_LINK)
+        (dist / "book").mkdir(exist_ok=True)
+        (dist / "book" / "index.html").write_text(book_html)
 
     where = "EXISTS (SELECT 1 FROM visibility_checks v WHERE v.company_id=c.id)"
     params: list = []

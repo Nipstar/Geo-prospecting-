@@ -1,0 +1,5 @@
+# Cloudflare Pages headers. The entire claim site is private outreach —
+# keep it out of every search index at the HTTP layer as well as via
+# per-page <meta name="robots"> tags.
+/*
+  X-Robots-Tag: noindex, nofollow
