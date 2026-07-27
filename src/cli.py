@@ -88,7 +88,21 @@ def ingest_ch(status: str, limit: int, dry_run: bool) -> None:
 @click.option("--limit", default=50, type=int)
 @click.option("--dry-run", is_flag=True)
 def ingest_sunbiz(state: str, limit: int, dry_run: bool) -> None:
-    """US owner enrichment: attach a Florida Sunbiz officer name + mailing address."""
+    """US owner enrichment: attach a Florida Sunbiz officer name + mailing address.
+
+    DISABLED BY DEFAULT. Sunbiz enrichment goes through Apify and burns credits
+    for a low (~14%) usable-name yield — not worth it at scale. Prefer the
+    web-owner enricher (free) or LinkedIn. To run it anyway (e.g. a targeted
+    high-value batch), set ALLOW_SUNBIZ=1 in the environment.
+    """
+    import os
+    if os.getenv("ALLOW_SUNBIZ") != "1":
+        console.print(
+            "[red]Sunbiz enrichment is disabled[/red] — it uses Apify credits for "
+            "~14% usable-name yield. Use `ingest web-owner` (free) instead.\n"
+            "To override for a deliberate targeted batch: set ALLOW_SUNBIZ=1."
+        )
+        return
     from .ingest import sunbiz
 
     res = sunbiz.run_sunbiz_enrich(state=state, limit=limit, dry_run=dry_run)
