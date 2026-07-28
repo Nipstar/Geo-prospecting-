@@ -321,12 +321,22 @@ def run_email_backfill(limit: int = 20, state: str | None = None,
     """
     conn = db.get_connection()
     db.ensure_person_contact(conn)
+    # Permanent attempt log — a company whose site has no public email will
+    # fail every retry forever; without this, re-running the same LIMIT query
+    # (e.g. across chunked worker dispatches) would just keep re-fetching the
+    # same permanently-failing rows and never reach the rest of the batch.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS email_backfill_attempts "
+        "(company_id INTEGER PRIMARY KEY, attempted_at TEXT)"
+    )
+    conn.commit()
 
     where = ["c.website IS NOT NULL AND c.website <> ''",
              "c.website LIKE 'http%'",
              "c.county IN ('Florida','Texas','FL','TX')",
              "p.name IS NOT NULL AND p.name <> ''",
-             "(p.email IS NULL OR p.email = '')"]
+             "(p.email IS NULL OR p.email = '')",
+             "NOT EXISTS (SELECT 1 FROM email_backfill_attempts a WHERE a.company_id=c.id)"]
     params: list = []
     if state:
         where.append("c.county = ?"); params.append(state)
@@ -345,19 +355,40 @@ def run_email_backfill(limit: int = 20, state: str | None = None,
             domain = _domain(co["website"])
             if not domain:
                 no_domain += 1
+                if not dry_run:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO email_backfill_attempts (company_id, attempted_at) "
+                        "VALUES (?, datetime('now'))", (co["id"],))
+                    conn.commit()
                 continue
             try:
                 base = f"https://{domain}"
                 htmls = [_fetch(base) or _fetch(f"http://{domain}")]
-                for path in _ABOUT_PATHS:
-                    extra = _fetch(urljoin(base, path))
-                    if extra:
-                        htmls.append(extra)
-
                 email = _pick_email(_emails(htmls), co["person_name"], domain)
+                # Only crawl About/Team/Contact pages if the homepage didn't
+                # already yield a usable email — most sites have a mailto or
+                # visible address on the homepage; the extra fetches are the
+                # slow part (up to 9 more requests/company) so skip when done.
+                if not email:
+                    for path in _ABOUT_PATHS:
+                        extra = _fetch(urljoin(base, path))
+                        if not extra:
+                            continue
+                        htmls.append(extra)
+                        email = _pick_email(_emails(htmls), co["person_name"], domain)
+                        if email:
+                            break
+
+                if not dry_run:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO email_backfill_attempts (company_id, attempted_at) "
+                        "VALUES (?, datetime('now'))", (co["id"],))
+
                 if not email:
                     no_email += 1
                     print(f"  ? {co['name']} ({domain}): no email found")
+                    if not dry_run:
+                        conn.commit()
                     continue
 
                 found += 1
