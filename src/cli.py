@@ -172,6 +172,21 @@ def ingest_web_owner(state: str | None, town: str | None, limit: int,
     console.print(res)
 
 
+@ingest.command("email-backfill")
+@click.option("--state", default=None, help="US state/county (e.g. Florida, Texas). Default: all US.")
+@click.option("--town", default=None, help="Only companies in this town.")
+@click.option("--limit", default=20, type=int)
+@click.option("--dry-run", is_flag=True)
+def ingest_email_backfill(state: str | None, town: str | None, limit: int, dry_run: bool) -> None:
+    """Email-only backfill for companies that already have a named person but
+    no email (from an earlier --no-email enrichment pass). Does not touch
+    the person's name/title, only fills email via the same web-scrape."""
+    from .ingest import web_owner
+
+    res = web_owner.run_email_backfill(limit=limit, state=state, town=town, dry_run=dry_run)
+    console.print(res)
+
+
 @cli.command("postgrid-send")
 @click.option("--limit", default=25, type=int)
 @click.option("--campaign", default="geo-1", help="Tag for metadata dedup.")

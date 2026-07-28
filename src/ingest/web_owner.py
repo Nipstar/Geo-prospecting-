@@ -305,3 +305,85 @@ def run_web_owner_enrich(limit: int = 50, state: str | None = None,
     return {"processed": processed, "named": named, "via_name": via_name,
             "via_web": via_web, "emails_found": emails_found,
             "no_owner": no_owner, "franchise_skipped": franchise, "errors": errors}
+
+
+def run_email_backfill(limit: int = 20, state: str | None = None,
+                        town: str | None = None, dry_run: bool = False,
+                        sleep: float = 0.5) -> dict[str, int]:
+    """Email-only backfill for companies that already have a named person
+    (from an earlier --no-email enrichment run) but no email on file yet.
+
+    `run_web_owner_enrich()` cannot be reused for this — its query explicitly
+    excludes any company with a named person row (`NOT EXISTS ... p.name IS
+    NOT NULL`), since its job is finding the OWNER, not the email. This is a
+    narrower sibling: person already known, only the email is missing. Same
+    fetch/extract/pick helpers, UPDATE instead of INSERT.
+    """
+    conn = db.get_connection()
+    db.ensure_person_contact(conn)
+
+    where = ["c.website IS NOT NULL AND c.website <> ''",
+             "c.website LIKE 'http%'",
+             "c.county IN ('Florida','Texas','FL','TX')",
+             "p.name IS NOT NULL AND p.name <> ''",
+             "(p.email IS NULL OR p.email = '')"]
+    params: list = []
+    if state:
+        where.append("c.county = ?"); params.append(state)
+    if town:
+        where.append("c.town = ?"); params.append(town)
+    sql = (f"SELECT c.*, p.id AS person_id, p.name AS person_name "
+           f"FROM companies c JOIN people p ON p.company_id = c.id "
+           f"WHERE {' AND '.join(where)} ORDER BY c.id LIMIT ?")
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+
+    processed = found = no_domain = no_email = errors = 0
+    try:
+        for co in rows:
+            processed += 1
+            domain = _domain(co["website"])
+            if not domain:
+                no_domain += 1
+                continue
+            try:
+                base = f"https://{domain}"
+                htmls = [_fetch(base) or _fetch(f"http://{domain}")]
+                for path in _ABOUT_PATHS:
+                    extra = _fetch(urljoin(base, path))
+                    if extra:
+                        htmls.append(extra)
+
+                email = _pick_email(_emails(htmls), co["person_name"], domain)
+                if not email:
+                    no_email += 1
+                    print(f"  ? {co['name']} ({domain}): no email found")
+                    continue
+
+                found += 1
+                print(f"  + {co['name']} ({co['person_name']}) -> {email}")
+                if not dry_run:
+                    # Re-check right before writing — same race-window guard
+                    # used in run_web_owner_enrich, in case another process
+                    # already filled this person's email in the meantime.
+                    current = conn.execute(
+                        "SELECT email FROM people WHERE id=?", (co["person_id"],)
+                    ).fetchone()
+                    if current and current["email"]:
+                        print(f"    (skip — {co['name']} already has an email)")
+                    else:
+                        conn.execute(
+                            "UPDATE people SET email=? WHERE id=?",
+                            (email, co["person_id"]),
+                        )
+                        conn.commit()  # per-company commit: resumable on timeout/kill
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                print(f"  ! {co['name']}: {exc}")
+            time.sleep(sleep)
+        if not dry_run:
+            conn.commit()
+    finally:
+        conn.close()
+    return {"processed": processed, "found": found, "no_domain": no_domain,
+            "no_email": no_email, "errors": errors}
