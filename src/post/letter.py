@@ -165,6 +165,33 @@ def clean_display_name(raw: str) -> str:
         if len(candidate) >= 4:      # don't truncate down to near-nothing
             name = candidate
     name = re.sub(r"[,;:&\-–—\s]+$", "", name).strip()
+    name = _strip_realtor_suffix(name)
+    return name
+
+
+_DANGLING_WORDS = {"of", "for", "in", "the", "a", "an", "with", "by", "at", "and", "to"}
+
+
+def _strip_realtor_suffix(name: str) -> str:
+    """Drop a trailing 'Realtor'/'Realtors'/'REALTOR®' credential — redundant
+    in a letter that already says "...ask for a real estate agent...".
+
+    Repeats until stable (handles "Realtor ®" and similar double-tails), then
+    re-applies the same trailing-punctuation trim as the caller. Guarded: if
+    stripping would leave a dangling preposition/article ("Association OF
+    Realtors" -> "Association of"), the word was grammatically load-bearing,
+    not a decorative suffix — the original is kept.
+    """
+    original = name
+    prev = None
+    while prev != name:
+        prev = name
+        name = re.sub(r"[,\s]*realtors?\.?\s*[®™]?\s*$", "", name, flags=re.I).strip()
+        name = re.sub(r"[®™]\s*$", "", name).strip()
+        name = re.sub(r"[,;:&/\-–—\s]+$", "", name).strip()
+    last_word = name.split()[-1].lower().rstrip(".,") if name else ""
+    if last_word in _DANGLING_WORDS or len(name) < 4:
+        return original
     return name
 
 
