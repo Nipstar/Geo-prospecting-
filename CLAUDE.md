@@ -120,3 +120,86 @@ Letters sent via PostGrid using editable portal templates (not inline HTML).
 ### Claim URL
 `go.antekautomation.com/<slug>` (CNAME → antek-claim.pages.dev).
 Set `CLAIM_SITE_URL=https://go.antekautomation.com` in .env.
+
+## COMPANY NAME CLEANING (`clean_display_name()` in `src/post/letter.py`)
+
+Company names in the DB are raw Google Places listing titles — they routinely
+stack the real business name with SEO taglines, brokerage affiliations, and
+credential suffixes. Anywhere a company name is shown to a recipient (letter
+body, address block, claim page) MUST go through `clean_display_name()`
+first. **Never write `company["name"]` / `co["name"]` directly into
+recipient-facing output** — that was the exact bug found twice this session
+(see "Known gap" below).
+
+### What it strips
+
+1. **Tagline/affiliation separators** — truncates at the EARLIEST occurrence
+   of any of: `" | "`, `" / "`, `" - "`, `" – "`, `" — "`, `" with "`,
+   `" at "`, `" @ "`, `" powered by "`, `" brokered by "`, `" in "` (any
+   casing). All require surrounding spaces, so a brand's own unspaced text
+   is never touched (`RE/MAX`, `LLC/KW St Pete` survive intact).
+   - `"Alena Nicole Kolyadchik, LLC / English - Russian speaking Realtor® in Orlando"`
+     → `"Alena Nicole Kolyadchik, LLC"`
+   - `"Jac Smith Group with Keller Williams Realty St. Pete"` → `"Jac Smith Group"`
+   - `"Chris Rogers Realtor - Home Dream Team Clearwater"` → `"Chris Rogers Realtor"`
+2. **Trailing Realtor(s)/trademark credential** (`_strip_realtor_suffix()`)
+   — `"Chris Rogers Realtor"` → `"Chris Rogers"`, `"Yvette Fuertes REALTOR®"`
+   → `"Yvette Fuertes"`. Redundant: the letter body already says "...ask for
+   a real estate agent...".
+3. **Dangling punctuation** left over from either strip (comma, dash,
+   ampersand, slash) is trimmed — but a trailing **period is never touched**,
+   it legitimately ends abbreviations (`Inc.`, `Co.`, `P.A.`).
+
+### Safety guard
+
+`_strip_realtor_suffix()` reverts to the original if stripping would leave a
+dangling preposition/article as the last word (`of`, `for`, `in`, `the`, `a`,
+`an`, `with`, `by`, `at`, `and`, `to`) — catches cases like `"Marco Island Area
+Association of Realtors"`, where "Realtors" is part of the org's real name,
+not a decorative suffix. Any change to the separator/suffix logic must be
+re-tested against the full FL name set before shipping (see workflow below) —
+new separators can create new dangling-word edge cases.
+
+### Franchise / client exclusion (separate from name cleaning, same theme)
+
+- **Franchises never get a letter, full stop** — `franchises.is_franchise()`
+  is checked at THREE points so no single miss lets one through: `places.py`
+  ingest, `router.py` routing (→ `channel='excluded_franchise'`, never
+  `post`/`linkedin`), and defensively again at draft time in both
+  `letter.py draft_letters_for_post()` and `messages/generate.py
+  draft_batch()`. Found 61 franchise letters had leaked through via the
+  routing gap alone before this was fixed — always keep all three checks.
+- **Clients are permanently excluded** by setting `companies.status='client'`
+  (the router/draft queries already filter `status NOT IN
+  ('closed_lost','client')`). Pursuit Real Estate (id 604, Jacksonville) was
+  set this way — a live voice-agent client, conflict of interest to
+  cold-letter. When onboarding a new client that also exists as a prospect
+  row: `UPDATE companies SET status='client', channel=NULL WHERE id=?`, then
+  delete its `letters` row + PDF file, and remove its claim page from
+  `claim-site/dist/<slug>/` before the next deploy.
+
+### Standing workflow: name-cleaning fixes MUST regenerate everything downstream
+
+`clean_display_name()` runs at RENDER time, not ingest time — so a fix to the
+function does nothing to already-drafted PDFs/pages/CSVs until you re-run
+every consumer. After any change to this function:
+
+1. Regenerate every FL letter PDF in place (same `pdf_path`, same
+   `claim_code`/slug — only the body text changes):
+   ```python
+   # for each row in `letters` joined to FL companies:
+   html, meta = letter_mod.render_letter_html(conn, company, letter_no, stamped_address=False)
+   letter_mod._render_pdf(html, Path(pdf_path))
+   ```
+2. Rebuild claim pages: `CAL_LINK=... CLAIM_SITE_URL=... uv run python claim-site/build.py --status checked --limit 2000`
+3. Redeploy: `cd claim-site && cp -r functions dist/functions && npx wrangler pages deploy dist --project-name antek-claim --branch main`
+4. Rebuild every mailing CSV — **apply `clean_display_name()` to the
+   business-name column explicitly**; the CSV builder does NOT get the fix
+   for free just because the PDFs were regenerated (this was the second bug
+   found this session: the CSV script wrote `r['name']` raw, never calling
+   the cleaner, even after the PDFs were already correct).
+5. Re-zip the (already-regenerated) PDFs and `gh release upload --clobber`
+   both the combined bundle and the region-split batches.
+
+Skipping any of steps 1–5 leaves a stale artifact with the old dirty name
+sitting somewhere a human will eventually open.
