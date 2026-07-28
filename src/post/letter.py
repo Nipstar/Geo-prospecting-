@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import secrets
 import string
 from datetime import date
@@ -120,26 +121,50 @@ def _salutation(full_name: str) -> str:
     return f"{title} {surname}" if title else "Sir or Madam"
 
 
+_NAME_TAGLINE_SEPS = (
+    " | ", " / ", " - ", " – ", " — ",
+    " with ", " at ", " @ ",
+    " powered by ", " Powered by ", " Powered By ",
+    " brokered by ", " Brokered by ",
+    " in ", " In ",
+)
+
+
 def clean_display_name(raw: str) -> str:
     """Strip Google-Places-style marketing taglines off a recipient-facing
     business name, keeping the real name/brand.
 
     Places listing titles often stack the actual business name with SEO
-    taglines and brokerage affiliations behind a pipe or slash separator,
-    e.g. "Alena Nicole Kolyadchik, LLC / English - Russian speaking
-    Realtor(R) in Orlando" or "David Freed Realtor | Miami Is Home | Keller
-    Williams Realty". Truncating at the FIRST " | " or " / " (spaced, so it
-    never touches a brand's own slash like "RE/MAX") keeps the real name and
-    drops the tail — safe against every case checked in the FL dataset.
+    taglines, city/area mentions, and brokerage affiliations behind a
+    separator, e.g. "Alena Nicole Kolyadchik, LLC / English - Russian
+    speaking Realtor(R) in Orlando", "David Freed Realtor | Miami Is Home |
+    Keller Williams Realty", "Jac Smith Group with Keller Williams Realty
+    St. Pete", "Chris Rogers Realtor - Home Dream Team Clearwater".
+
+    Truncating at the EARLIEST occurrence of any spaced separator keeps the
+    real name/team and drops the tail. All separators require surrounding
+    spaces, so a brand's own unspaced character sequence is never touched
+    (e.g. "RE/MAX", "LLC/KW St Pete"). Verified safe against the full FL
+    dataset — the one case that over-truncates ("RE/MAX - Martha Loss...")
+    is a franchise office already excluded from lettering entirely.
+
+    A trailing separator remnant (comma/dash/ampersand left dangling after
+    truncation) is trimmed, but a trailing PERIOD is never touched — it
+    legitimately ends abbreviations like "Inc.", "Co.", "P.A.".
     """
     name = (raw or "").strip()
     if not name:
         return name
-    for sep in (" | ", " / "):
-        if sep in name:
-            first = name.split(sep, 1)[0].strip()
-            if len(first) >= 4:      # don't truncate down to near-nothing
-                name = first
+    earliest: int | None = None
+    for sep in _NAME_TAGLINE_SEPS:
+        idx = name.find(sep)
+        if idx != -1 and (earliest is None or idx < earliest):
+            earliest = idx
+    if earliest is not None:
+        candidate = name[:earliest].strip()
+        if len(candidate) >= 4:      # don't truncate down to near-nothing
+            name = candidate
+    name = re.sub(r"[,;:&\-–—\s]+$", "", name).strip()
     return name
 
 
