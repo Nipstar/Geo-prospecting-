@@ -1,7 +1,8 @@
 """Google Places prospecting via the Apify compass/crawler-google-places actor.
 
 Discovers companies by sector + town, maps them into the companies table, dedups
-on (name, town) and website domain, and skips national chains.
+first on Google's own place_id (when available), falling back to (name, town)
+and website domain, and skips national chains.
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ ACTOR_ID = "compass/crawler-google-places"
 # page, paginated via nextPageToken. No Apify credit needed.
 _PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
 _FIELD_MASK = (
-    "places.displayName,places.formattedAddress,places.websiteUri,"
+    "places.id,places.displayName,places.formattedAddress,places.websiteUri,"
     "places.nationalPhoneNumber,places.rating,places.userRatingCount,"
     "places.businessStatus,places.addressComponents,nextPageToken"
 )
@@ -55,6 +56,7 @@ def _run_places_api(sector: str, town: str, max_results: int,
             if (p.get("businessStatus") or "OPERATIONAL") != "OPERATIONAL":
                 continue
             items.append({
+                "placeId": p.get("id") or "",
                 "title": (p.get("displayName") or {}).get("text", ""),
                 "website": p.get("websiteUri") or "",
                 "city": _addr_component(p, "locality")
@@ -102,6 +104,12 @@ def _run_actor(sector: str, town: str, max_results: int, country_code: str = "gb
 def _map_place(item: dict[str, Any], sector: str, town: str) -> dict[str, Any]:
     return {
         "name": (item.get("title") or item.get("name") or "").strip(),
+        # Google's own stable per-listing ID — harder dedup key than (name,
+        # town)+domain (ported from geo-slab's places_prospector.py). The
+        # official API path sets "placeId" in _run_places_api; the Apify
+        # compass/crawler-google-places actor's own field is "placeId" too,
+        # with "cid" as a fallback some actor versions use instead.
+        "places_place_id": item.get("placeId") or item.get("cid") or "",
         "website": item.get("website") or "",
         "town": item.get("city") or town,
         "county": item.get("state") or item.get("county"),
@@ -149,7 +157,17 @@ def run_places_search(
             if util.is_chain(mapped["name"]) or franchises.is_franchise(mapped["name"]):
                 skipped_chain += 1  # national chain or real-estate franchise office
                 continue
-            dup = util.find_duplicate(conn, mapped["name"], mapped["town"], mapped["website"])
+            # place_id dedup first — a stable Google ID catches true duplicates
+            # that (name, town)+domain matching misses (renamed/re-categorised
+            # listings) without the false-positive risk of fuzzy name matching.
+            dup = None
+            if mapped["places_place_id"]:
+                dup = conn.execute(
+                    "SELECT * FROM companies WHERE places_place_id = ?",
+                    (mapped["places_place_id"],),
+                ).fetchone()
+            if not dup:
+                dup = util.find_duplicate(conn, mapped["name"], mapped["town"], mapped["website"])
             if dup:
                 skipped_dupe += 1
                 # Back-fill a missing mailing address from Places (e.g. sole

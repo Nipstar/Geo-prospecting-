@@ -247,6 +247,16 @@ _ADDED_COLUMNS = [
     ("visibility_checks", "platforms_tested", "INTEGER"),
     ("visibility_checks", "platforms_mentioned", "INTEGER"),
     ("visibility_checks", "cost_usd", "REAL"),
+    # Google's own stable per-listing ID (ported from geo-slab's
+    # places_prospector.py, 2026-07-29) — a harder dedup key than (name, town)
+    # + domain: survives a listing being renamed/re-categorised, and catches
+    # true duplicates that (name, town) matching misses or false-positives on.
+    ("companies", "places_place_id", "TEXT"),
+    # Fuzzy Companies House match confidence (ported from geo-slab's
+    # companies_house.py, 2026-07-29) — replaces exact-normalised-name-only
+    # matching, which missed near-exact variants (punctuation, legal suffix
+    # differences) and mislabelled them as unmatched sole traders.
+    ("companies", "ch_match_confidence", "REAL"),
 ]
 
 

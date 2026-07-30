@@ -76,8 +76,20 @@ def ingest_enrich(limit: int, dry_run: bool) -> None:
 @click.option("--status", default="new")
 @click.option("--limit", default=50, type=int)
 @click.option("--dry-run", is_flag=True)
-def ingest_ch(status: str, limit: int, dry_run: bool) -> None:
+@click.option("--review", is_flag=True, help="List companies whose best CH match is 0.5-0.8 "
+             "confidence (needs a human glance before trusting the director name).")
+def ingest_ch(status: str, limit: int, dry_run: bool, review: bool) -> None:
     from .ingest import companies_house
+
+    if review:
+        rows = companies_house.review_queue()
+        if not rows:
+            console.print("[green]No companies in the review band.[/green]")
+            return
+        console.print(f"[yellow]{len(rows)} company(ies) at 0.5-0.8 CH match confidence:[/yellow]")
+        for r in rows:
+            console.print(f"  {r['id']}  {r['name']!r}  ({r['town']})  confidence={r['ch_match_confidence']}")
+        return
 
     res = companies_house.run_ch(status, limit, dry_run=dry_run)
     console.print(res)
