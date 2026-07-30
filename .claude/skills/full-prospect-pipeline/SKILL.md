@@ -94,6 +94,38 @@ scrape-first policy):
 uv run cli ingest email-backfill --state "<state>" --limit 15   # repeat via worker
 ```
 
+### Token-cost discipline for Stages 3-4 (enrichment + visibility check)
+
+Two separate cost surfaces here — do not conflate them:
+
+- **The actual scrape/extract call is already cheap.** `web_owner.py`'s owner
+  extraction runs server-side on `openai/gpt-4o-mini` via OpenRouter (hardcoded
+  in `_extract_owner()`), off the orchestrating agent's context entirely. No
+  change needed there — it's a few cents per company, not a token concern.
+- **The waste is orchestration overhead**, not the scrape itself: dispatching
+  a full Sonnet-tier `worker` agent turn for every ~15-company chunk means a
+  reasoning-tier model spends tokens deciding to run a mechanical bash loop
+  that requires zero judgement. Two fixes, both mandatory for batches over
+  ~50 companies:
+  1. **One continuous resumable loop per dispatch, not many small ones.**
+     Give the worker (or run directly) a single Python loop that keeps
+     calling `run_web_owner_enrich()` / `run_email_backfill()` /
+     `score_company()` in a `while True` until the query returns nothing left
+     matching (per-company `conn.commit()`, same pattern as
+     `/tmp/fl_check_loop.py` this project has used before) — not a fresh
+     agent dispatch per 15-company slice.
+  2. **Use the cheapest capable tier for the dispatch itself.** Purely
+     mechanical loop-and-report work (no judgement, no writing) does not need
+     the `worker` teammate's default model. Prefer the `Agent` tool directly
+     with `model: "haiku"` (or `effort: "low"`) for these runs instead of
+     `mission-cli create --agent worker`, reserving the Sonnet-tier `worker`
+     teammate for chunks that actually need judgement (e.g. resolving a
+     stuck/ambiguous entity match, debugging a script failure mid-run).
+     `mission-cli`/the `worker` teammate has no per-dispatch model override —
+     if the mechanical-loop pattern still needs a background agent (long
+     enough to exceed a single turn), use the `Agent` tool with an explicit
+     cheap-model override rather than `mission-cli create`.
+
 ## Stage 4 — Visibility check
 
 ```
