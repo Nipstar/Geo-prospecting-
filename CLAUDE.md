@@ -9,6 +9,17 @@ Certified Retell AI Partner. 30+ years in field service and managed print.
 Antek Automation is NOT a limited company. Never write "Antek Automation Ltd"
 or "Limited" anywhere.
 
+## FULL PIPELINE SKILL
+
+For "run prospecting for [industry] in [area]" style requests, use the
+`.claude/skills/full-prospect-pipeline/SKILL.md` skill — it stages
+ingest -> route -> enrich -> check -> draft -> bundle -> **mandatory stop and
+ask** -> PostGrid send, with the scope questions and final send confirmation
+built in as hard gates. Do not hand-chain the individual `cli` commands for a
+new batch without it; the skill exists specifically to stop the guardrails
+below (franchise/client exclusion, scrape-before-Apollo, worker cross-check,
+name cleaning) from being skipped under time pressure.
+
 ## VOICE RULES (apply to every generated message and report)
 
 - Direct British English. Short sentences. Plain words.
