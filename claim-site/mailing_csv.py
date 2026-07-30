@@ -9,6 +9,7 @@ sys.path.insert(0, "/data/.claudeclaw/agents/clawdineresearch/geo-prospecting")
 os.chdir("/data/.claudeclaw/agents/clawdineresearch/geo-prospecting")
 from src import db  # noqa: E402
 from src.post import letter as L  # noqa: E402
+from src.post.letter import clean_display_name  # noqa: E402
 from src.visibility.report import slugify  # noqa: E402
 
 SITE = "https://go.antekautomation.com"
@@ -60,9 +61,15 @@ with open(out_path, "w", newline="") as f:
         v = db.latest_check(conn, co["id"])
         score = int(round(v["composite_score"])) if v else ""
         comp = (v["competitor_named"].split(",")[0].strip() if v and v["competitor_named"] else "")
+        # ALWAYS clean_display_name() before writing a business name into a
+        # recipient/reviewer-facing artefact — raw DB names are unedited
+        # Google Places listing titles (SEO taglines, franchise affiliations,
+        # "Realtor(R)" suffixes etc). Slugs/claim URLs deliberately keep the
+        # raw name for URL stability (unchanged below).
+        firm_display = clean_display_name(co["name"])
         w.writerow([
             _country(co),
-            co["name"], addressee, f"Dear {salutation},", addr, postcode, co["town"] or "",
+            firm_display, addressee, f"Dear {salutation},", addr, postcode, co["town"] or "",
             co["phone"] or "", co["website"] or "", score, comp,
             f"{SITE}/{co['slug'] or slugify(co['name'])}", co["claim_code"] or "",
             os.path.basename(co["pdf_path"] or ""),
