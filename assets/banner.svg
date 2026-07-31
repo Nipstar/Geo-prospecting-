@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220">
+  <!-- Antek Automation brand tokens: coral #CD5C3C, cream #E8DCC8,
+       sage #C8D8D0, charcoal #2C2C2C. Zero border radius, hard offset
+       shadows, flat colour, no gradients. Distinct from geo-slab's
+       gradient style; this is the flat brand from src/reports/brand.py. -->
+
+  <!-- Background -->
+  <rect width="900" height="220" fill="#2C2C2C"/>
+
+  <!-- Sparse grid texture -->
+  <g opacity="0.05" stroke="#E8DCC8" stroke-width="1">
+    <line x1="0" y1="55" x2="900" y2="55"/>
+    <line x1="0" y1="110" x2="900" y2="110"/>
+    <line x1="0" y1="165" x2="900" y2="165"/>
+  </g>
+
+  <!-- Antek "A" mark: two overlapping hard-edge triangles, coral + cream,
+       offset shadow behind -->
+  <g transform="translate(52, 46)">
+    <polygon points="64,0 128,128 0,128" fill="#2C2C2C"/>
+    <polygon points="70,6 134,134 6,134" fill="#CD5C3C"/>
+    <polygon points="64,0 128,128 0,128" fill="#E8DCC8"/>
+    <polygon points="64,26 100,98 28,98" fill="#2C2C2C"/>
+  </g>
+
+  <!-- Title block, hard offset shadow -->
+  <g transform="translate(230, 66)">
+    <rect x="6" y="6" width="560" height="60" fill="#CD5C3C"/>
+    <rect x="0" y="0" width="560" height="60" fill="#E8DCC8"/>
+    <text x="20" y="42" font-family="Outfit, sans-serif" font-weight="800"
+          font-size="34" fill="#2C2C2C" letter-spacing="1">GEO-OUTREACH</text>
+  </g>
+
+  <!-- Tagline -->
+  <text x="234" y="152" font-family="DM Sans, sans-serif" font-weight="500"
+        font-size="17" fill="#E8DCC8">
+    LinkedIn + postal client acquisition for Antek Automation's GEO services
+  </text>
+  <text x="234" y="178" font-family="JetBrains Mono, monospace" font-weight="500"
+        font-size="13" fill="#C8D8D0">
+    free AI Visibility Check &#8594; paid GEO audit &#8594; retainer
+  </text>
+
+  <!-- Sage accent bar, bottom -->
+  <rect x="0" y="212" width="900" height="8" fill="#C8D8D0"/>
+  <rect x="0" y="212" width="225" height="8" fill="#CD5C3C"/>
+</svg>
