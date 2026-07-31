@@ -136,9 +136,9 @@ uv run cli post draft --limit 10                      # postal letters
 uv run cli queue                                       # today's work list
 ```
 
-For a brand-new industry/area combo, prefer the staged skill
-(`.claude/skills/full-prospect-pipeline/SKILL.md`) over hand-chaining these —
-it adds the upfront scope questions and the mandatory send confirmation.
+For a brand-new industry/area combo, prefer `/pipeline` (or the staged skill
+directly, `.claude/skills/full-prospect-pipeline/SKILL.md`) over hand-chaining
+these — it adds the upfront scope questions and the mandatory send confirmation.
 
 ## Daily routine (about 30 minutes)
 
@@ -187,7 +187,8 @@ stats [--channel] / stats weekly        reporting
 ```
 
 Slash commands (in Claude Code): `/prospect`, `/check`, `/draft`, `/audit`,
-`/opener`, `/reply`, `/today`, `/stats`, `/week`.
+`/opener`, `/reply`, `/today`, `/stats`, `/week`, `/pipeline` (new industry +
+area, full staged run via `full-prospect-pipeline` — see below).
 
 ## Channel routing
 
