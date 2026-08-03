@@ -173,25 +173,31 @@ def _join_names(names: list[str]) -> str:
 
 
 def _headline_finding(company, queries, platforms_mentioned, competitors) -> str:
-    """One plain sentence for the opener. Deterministic, no hype, no em dashes."""
-    town = company["town"] or "their area"
+    """One plain sentence for the opener. Deterministic, no hype, no em dashes.
+
+    No town on the row means an international/software target, not a "near me"
+    local business — drop the "in {town}" framing instead of the vague
+    "their area" fallback (mirrors the auto-detect in visibility/prompts.py
+    and claim-site/build.py's stakes line)."""
+    town = (company["town"] or "").strip()
+    where = f" in {town}" if town else ""
     phrase = competitor_gate.noun_phrase(company["sector"] or company["name"])
     comp_str = _join_names(competitors[:2]) if competitors else "other firms"
     n = len(queries)
     if platforms_mentioned == 0:
         return (
-            f"Asked ChatGPT, Claude, Gemini and Perplexity for {phrase} in {town} "
+            f"Asked ChatGPT, Claude, Gemini and Perplexity for {phrase}{where} "
             f"{n} different ways. {comp_str} came up. {company['name']} did not "
             f"appear once."
         )
     if platforms_mentioned <= 2:
         return (
-            f"Checked how {company['name']} shows up when people ask AI for {phrase} "
-            f"in {town}. You appeared on {platforms_mentioned} of the engines, "
+            f"Checked how {company['name']} shows up when people ask AI for {phrase}"
+            f"{where}. You appeared on {platforms_mentioned} of the engines, "
             f"{comp_str} on more."
         )
     return (
         f"Checked how {company['name']} shows up across ChatGPT, Claude, Gemini "
-        f"and Perplexity for {phrase} in {town}. Present on most, but there are "
+        f"and Perplexity for {phrase}{where}. Present on most, but there are "
         f"gaps worth closing."
     )

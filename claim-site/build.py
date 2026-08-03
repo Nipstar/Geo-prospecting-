@@ -209,22 +209,33 @@ def build(status: str | None, limit: int) -> list[str]:
         sw = SECTOR_WORD.get(sector, sector or "firm")
         rival_chips = _rival_chips(" ".join(q["raw"] for q in quotes),
                                    firm_display, co["town"] or "")
+        is_global = not bool(co["town"])
         town_d = co["town"] or "your area"
+        rival_noun = "tool" if is_global else "firm"
         mentioned = v["platforms_mentioned"] or 0
         # Stakes line — frames the score as lost enquiries (funnel: shows WHAT, not HOW).
+        # No town on the row (international/software target, not "near me" local search)
+        # -> drop the "in {town}" framing instead of falling back to a vague "your area".
         if mentioned == 0:
-            stakes = (f"When someone in {town_d} asks ChatGPT, Gemini or Perplexity for a "
-                      f"{sw}, {firm_display} does not come up at all.")
+            if is_global:
+                stakes = (f"When someone asks ChatGPT, Gemini or Perplexity for "
+                          f"{sw}, {firm_display} does not come up at all.")
+            else:
+                stakes = (f"When someone in {town_d} asks ChatGPT, Gemini or Perplexity for a "
+                          f"{sw}, {firm_display} does not come up at all.")
         else:
             stakes = (f"{firm_display} shows up on {mentioned} of {v['platforms_tested']} AI "
                       f"engines — but that still leaves gaps a competitor is filling.")
         if top_competitor:
             stakes += f" {top_competitor} appears where you don't, and those enquiries go to them."
         # Gap checklist — WHAT's wrong (absent engines + competitor), never HOW to fix.
-        gaps = [f"Invisible on {e['label']} when buyers ask for a {sw}"
+        # Local sector words are countable ("a solicitor"); global category phrases
+        # already read fine bare ("AI transformation audit software").
+        sw_phrase = sw if is_global else f"a {sw}"
+        gaps = [f"Invisible on {e['label']} when buyers ask for {sw_phrase}"
                 for e in engines if not e["appears"]][:3]
         if top_competitor:
-            gaps.append(f"{top_competitor} is the firm AI names instead of you")
+            gaps.append(f"{top_competitor} is the {rival_noun} AI names instead of you")
         html = tpl.render(
             firm=firm_display, town=town_d,
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
