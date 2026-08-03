@@ -212,6 +212,14 @@ def build(status: str | None, limit: int) -> list[str]:
         is_global = not bool(co["town"])
         town_d = co["town"] or "your area"
         rival_noun = "tool" if is_global else "firm"
+        # Phrase fragments the template slots directly into sentences, so a
+        # blank/absent town (international/software target) drops the "in
+        # {town}" framing everywhere instead of leaking "in your area" or
+        # "in " with nothing after it. Computed once here, not with template
+        # conditionals scattered across every sentence that mentions a place.
+        in_town = "" if is_global else f" in {town_d}"
+        someone_in_town = "Someone " if is_global else f"Someone in {town_d} "
+        local_prefix = "" if is_global else f"{town_d} "
         mentioned = v["platforms_mentioned"] or 0
         # Stakes line — frames the score as lost enquiries (funnel: shows WHAT, not HOW).
         # No town on the row (international/software target, not "near me" local search)
@@ -237,7 +245,9 @@ def build(status: str | None, limit: int) -> list[str]:
         if top_competitor:
             gaps.append(f"{top_competitor} is the {rival_noun} AI names instead of you")
         html = tpl.render(
-            firm=firm_display, town=town_d,
+            firm=firm_display, town=town_d, town_display=("" if is_global else town_d),
+            in_town=in_town, someone_in_town=someone_in_town, local_prefix=local_prefix,
+            sector_phrase=sw_phrase,
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
             rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
             phone=co["phone"] or "", director=director,
@@ -282,12 +292,18 @@ def build(status: str | None, limit: int) -> list[str]:
                               "html": _highlight(resp, firm_display, comp_list)})
             questions.append({"query": q, "engines": elist})
         sector = (co["sector"] or "").lower()
+        rep_is_global = not bool(co["town"])
+        rep_town_d = co["town"] or "your area"
+        rep_sw = SECTOR_WORD.get(sector, sector or "firm")
         rhtml = report_tpl.render(
-            firm=firm_display, town=co["town"] or "your area",
+            firm=firm_display, town=rep_town_d, town_display=("" if rep_is_global else rep_town_d),
+            in_town=("" if rep_is_global else f" in {rep_town_d}"),
+            local_prefix=("" if rep_is_global else f"{rep_town_d} "),
+            sector_phrase=(rep_sw if rep_is_global else f"a {rep_sw}"),
             website_display=(co["website"] or "").replace("https://", "").replace("http://", "").rstrip("/"),
             rating=co["places_rating"] or "", reviews=co["places_reviews"] or "",
             score=int(round(v["composite_score"])), mentioned=v["platforms_mentioned"], tested=v["platforms_tested"],
-            sector_word=SECTOR_WORD.get(sector, sector or "firm"),
+            sector_word=rep_sw,
             competitors=comp_str or "other firms", questions=questions, cal_link=CAL_LINK,
             slug=(co["slug"] or slugify(co["name"])),
         )

@@ -55,12 +55,12 @@
   <div class="card">
     <div class="kicker">Full AI Visibility Report</div>
     <h1>{{ firm }}</h1>
-    <div class="sub">{{ town }} · {{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
+    <div class="sub">{% if town_display %}{{ town_display }} · {% endif %}{{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
     <div class="scorewrap">
       <div class="score mono">{{ score }}<small>/100</small></div>
       <div>
         <div class="pill">{{ mentioned }} of {{ tested }} AI engines mention you</div>
-        <p class="sub" style="margin-top:8px">This is everything we found when we asked the major AI tools to recommend a {{ sector_word }} in {{ town }} — the exact questions, and each engine's answer word-for-word.</p>
+        <p class="sub" style="margin-top:8px">This is everything we found when we asked the major AI tools to recommend {{ sector_phrase }}{{ in_town }} — the exact questions, and each engine's answer word-for-word.</p>
       </div>
     </div>
   </div>
@@ -84,7 +84,7 @@
 
   <div class="card">
     <h2>What this <span class="a">means</span></h2>
-    <p>When someone asks an AI tool for a {{ sector_word }} in {{ town }}, it recommends the firms it understands best — not necessarily the best firms. Right now it points them to {{ competitors }}. {{ firm }} scored {{ score }}/100, appearing on {{ mentioned }} of {{ tested }} engines.</p>
+    <p>When someone asks an AI tool for {{ sector_phrase }}{{ in_town }}, it recommends the firms it understands best — not necessarily the best firms. Right now it points them to {{ competitors }}. {{ firm }} scored {{ score }}/100, appearing on {{ mentioned }} of {{ tested }} engines.</p>
     <h2 style="margin-top:18px">How this gets <span class="a">fixed</span></h2>
     <p>The fixes fall into three areas: how clearly your site describes what you do and where, the structured signals the models read, and the third-party mentions that push a firm into the "recommended" set.</p>
     <p><strong style="color:var(--cream)">Which of those matter most for {{ firm }}, in what order, and the exact changes</strong> — that's the <span style="color:var(--coral)">GEO Audit</span>: a prioritised, do-this-first plan built from your results, so you fix the things that move the needle and skip the things that don't.</p>
@@ -99,7 +99,7 @@
 
   <div class="foot">
     Andy Norman · Antek Automation · Andover · 0333 038 9960<br>
-    We help {{ town }} firms show up when customers ask AI for a recommendation.
+    We help {{ local_prefix }}firms show up when customers ask AI for a recommendation.
   </div>
 </div>
 <script>

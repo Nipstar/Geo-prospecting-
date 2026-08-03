@@ -96,13 +96,13 @@
   <div class="card">
     <div class="kicker">Your AI Visibility Check</div>
     <h1>{{ firm }}</h1>
-    <div class="sub">{{ town }} · {{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
+    <div class="sub">{% if town_display %}{{ town_display }} · {% endif %}{{ website_display }}{% if rating %} · {{ rating }}★ ({{ reviews }} reviews){% endif %}</div>
     <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
     <div class="scorewrap">
       <div class="score mono">{{ score }}<small>/100</small></div>
       <div>
         <div class="pill">{{ mentioned }} of {{ tested }} AI engines mention you</div>
-        <p class="sub" style="margin-top:8px">How visible {{ firm }} is when people ask AI tools for a {{ sector_word }} in {{ town }}.</p>
+        <p class="sub" style="margin-top:8px">How visible {{ firm }} is when people ask AI tools for {{ sector_phrase }}{{ in_town }}.</p>
       </div>
     </div>
     {% if stakes %}<div class="stakes">{{ stakes }}</div>{% endif %}
@@ -111,7 +111,7 @@
 
   {% if preview %}
   <div class="card heroband">
-    <div class="hb-live"><span class="dot"></span> Someone in {{ town }} is asking AI for a {{ sector_word }} right now</div>
+    <div class="hb-live"><span class="dot"></span> {{ someone_in_town }}is asking AI for {{ sector_phrase }} right now</div>
     <div class="hb-row">
       <div class="hb-col win"><div class="hb-k">Your competitors</div><div class="hb-v">✓ named by AI</div></div>
       <div class="hb-col lose"><div class="hb-k">{{ firm }}</div><div class="hb-v">✗ not in the answer</div></div>
@@ -146,7 +146,7 @@
   <div class="card">
     <h2>What buyers <span style="color:var(--coral)">actually see</span></h2>
     {% if rivals_named %}
-    <p class="punch">Ask AI for a {{ sector_word }} in {{ town }} and it recommends <b>a competitor by name</b> — not {{ firm }}. Here's a real answer from this week:</p>
+    <p class="punch">Ask AI for {{ sector_phrase }}{{ in_town }} and it recommends <b>a competitor by name</b> — not {{ firm }}. Here's a real answer from this week:</p>
     {% endif %}
     {% if preview and rival_chips %}
     <div class="chips">{% for c in rival_chips %}<span class="chip">{{ c }}</span>{% endfor %}</div>
@@ -163,8 +163,8 @@
 
   <div class="card challenge">
     <h2 style="color:var(--cream)">Don’t take our word for it</h2>
-    <p>Open ChatGPT right now and ask: <em style="color:var(--cream)">“Who’s the best {{ sector_word }} in {{ town }}?”</em> See which firms it names. Then look for yours.</p>
-    <span class="try mono">Try: best {{ sector_word }} in {{ town }}</span>
+    <p>Open ChatGPT right now and ask: <em style="color:var(--cream)">“Who’s the best {{ sector_word }}{{ in_town }}?”</em> See which firms it names. Then look for yours.</p>
+    <span class="try mono">Try: best {{ sector_word }}{{ in_town }}</span>
   </div>
 
   <div class="card">
@@ -209,7 +209,7 @@
 
   <div class="foot">
     Andy Norman · Antek Automation · Andover · 0333 038 9960<br>
-    We help {{ town }} firms show up when customers ask AI for a recommendation.
+    We help {{ local_prefix }}firms show up when customers ask AI for a recommendation.
   </div>
 </div>
 
