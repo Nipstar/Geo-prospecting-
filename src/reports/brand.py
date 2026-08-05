@@ -25,7 +25,17 @@ BORDER = f"2px solid {CHARCOAL}"
 # --- Company details (used in footers, never "Ltd") ------------------------
 COMPANY_NAME = "Antek Automation"
 OPERATOR = "Andy Norman"
+# UK letters/reports footer address. US letters use US_ADDRESS_LINES instead
+# (see letter.html.j2 market branch) — the PostGrid return/from address is a
+# separate concern and always stays 4 Highlands Road regardless of market
+# (see src/config.py POSTGRID_FROM_LINE1).
 ADDRESS_LINES = [
+    "Chantry House",
+    "38 Chantry Way",
+    "Andover",
+    "SP10 1LZ",
+]
+US_ADDRESS_LINES = [
     "4 Highlands Road",
     "Andover",
     "Hampshire",
@@ -103,6 +113,7 @@ TOKENS = {
     "company_name": COMPANY_NAME,
     "operator": OPERATOR,
     "address_lines": ADDRESS_LINES,
+    "us_address_lines": US_ADDRESS_LINES,
     "phone": PHONE,
     "website": WEBSITE,
 }

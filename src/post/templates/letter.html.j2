@@ -31,20 +31,13 @@
 </head>
 <body>
   <div class="header">
+    <!-- Logo only — sender address lives in the footer, never the header
+         (standing rule). PostGrid stamps the return address on the envelope
+         separately when stamped_address is set. -->
     <div class="brandmark">
       <img src="logo.svg" alt="Antek Automation">
       <span class="wm">Antek&nbsp;Automation</span>
     </div>
-    {% if not stamped_address %}
-    <div class="sender">
-      {% if market == 'US' %}
-        {{ tokens.website }}
-      {% else %}
-        {% for line in tokens.address_lines %}{{ line }}<br>{% endfor %}
-        {{ tokens.phone }}
-      {% endif %}
-    </div>
-    {% endif %}
   </div>
 
   {% if not stamped_address %}
@@ -104,9 +97,9 @@
 
   <div class="foot">
     {% if market == 'US' %}
-    {{ tokens.company_name }} · {{ tokens.website }}
+    {{ tokens.company_name }} &middot; {{ tokens.us_address_lines|join(', ') }} &middot; {{ tokens.website }}
     {% else %}
-    {{ tokens.company_name }} · {{ tokens.address_lines|join(', ') }} · {{ tokens.phone }} · {{ tokens.website }}
+    {{ tokens.company_name }} &middot; {{ tokens.address_lines|join(', ') }} &middot; {{ tokens.phone }} &middot; {{ tokens.website }}
     {% endif %}
   </div>
 </body>
