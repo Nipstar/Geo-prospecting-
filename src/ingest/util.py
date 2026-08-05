@@ -46,14 +46,34 @@ def is_chain(name: str) -> bool:
 # perfectly classifying every result.
 SECTOR_TYPE_MAP: dict[str, dict[str, list[str]]] = {
     "solicitors": {
-        # Google Places "types"/"primaryType" values (official API) and the
-        # Apify actor's "categoryName"/"categories" strings that indicate a
-        # genuine legal-services business.
-        "types": ["lawyer", "legal_services", "law_firm", "notary_public"],
-        # Substrings checked against the business name as a fallback when no
-        # category data is present (e.g. the Apify actor omitted it).
-        "name_keywords": ["solicitor", "law", "legal", "llp", "notary",
-                           "conveyanc", "barrister"],
+        # DENYLIST, not an allowlist. Google's own category for a genuine law
+        # firm is inconsistent — big/specialist firms are often tagged
+        # "consultant", "service", or even just "point_of_interest" rather
+        # than "lawyer" (Clyde & Co, a real SRA-regulated global firm, came
+        # back as primaryType="consultant" — the earlier allowlist design
+        # flagged it as a false positive). So this only rejects a *positive*
+        # signal of the WRONG business, never "no signal of the right one" —
+        # that generic-category case is common and not evidence of anything.
+        "deny_types": ["bank", "atm", "finance", "real estate agency",
+                        "real estate agent", "travel agency", "restaurant",
+                        "cafe", "supermarket", "grocery store", "pharmacy",
+                        "clothing store", "hair care", "beauty salon",
+                        "gym", "car dealer", "car repair"],
+        # Some categories are too ambiguous either way (consultant,
+        # government office, service) to use as a denylist signal on their
+        # own, but a business explicitly in a DIFFERENT regulated advisory
+        # profession is a genuine mismatch even without a denylist type hit —
+        # e.g. immigration advisers (OISC-regulated, not SRA) or family
+        # mediators (Family Mediation Council, not SRA). Checked against the
+        # name since Google doesn't expose a category for these.
+        # Also catches the case where Google's own category came back too
+        # generic to be useful (e.g. "service", "point_of_interest") but the
+        # business's own name says what it actually is — an estate agent's
+        # Google category isn't reliably "real estate agency", so the name is
+        # the more dependable signal there.
+        "deny_name_keywords": ["immigration adviser", "immigration advice",
+                                "family mediation", "mediation service",
+                                "estate agent", "estate agency"],
     },
 }
 
@@ -79,24 +99,24 @@ def _place_categories(item: dict) -> list[str]:
 def sector_mismatch(sector: str, name: str, item: dict) -> bool:
     """True if this place looks like the wrong business type for `sector`.
 
-    Conservative by design — see SECTOR_TYPE_MAP comment. Returns False
-    (i.e. "let it through") whenever the sector isn't mapped, or there's any
-    signal at all (category or name) suggesting a match."""
+    Denylist-based, not allowlist-based — see SECTOR_TYPE_MAP comment. Only
+    rejects on a positive signal of the WRONG business (an explicit
+    conflicting category, or a name naming a different regulated
+    profession). Returns False ("let it through") for everything else,
+    including the common case of a generic/ambiguous category — that's not
+    evidence either way, and treating it as a mismatch is what produced a
+    false positive on a genuine, well-known SRA-regulated law firm during
+    testing (its Google category was just "consultant")."""
     rules = SECTOR_TYPE_MAP.get((sector or "").strip().lower())
     if not rules:
         return False
     cats = _place_categories(item)
-    if any(t.replace("_", " ") in c for c in cats for t in rules["types"]):
-        return False
     name_l = (name or "").lower()
-    if any(kw in name_l for kw in rules["name_keywords"]):
-        return False
-    # No category data and no name hint either way — only flag as a mismatch
-    # if we positively found unrelated categories (e.g. "bank",
-    # "real_estate_agency"); an empty/unknown category list is not proof of
-    # anything, so let it through rather than risk silently dropping a real
-    # solicitor whose listing lacks both signals.
-    return bool(cats)
+    if any(deny in c for c in cats for deny in rules.get("deny_types", [])):
+        return True
+    if any(kw in name_l for kw in rules.get("deny_name_keywords", [])):
+        return True
+    return False
 
 
 def domain_of(website: str | None) -> str:
