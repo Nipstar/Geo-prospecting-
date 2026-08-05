@@ -22,7 +22,8 @@ _PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
 _FIELD_MASK = (
     "places.id,places.displayName,places.formattedAddress,places.websiteUri,"
     "places.nationalPhoneNumber,places.rating,places.userRatingCount,"
-    "places.businessStatus,places.addressComponents,nextPageToken"
+    "places.businessStatus,places.addressComponents,places.types,"
+    "places.primaryType,nextPageToken"
 )
 
 
@@ -66,6 +67,8 @@ def _run_places_api(sector: str, town: str, max_results: int,
                 "phone": p.get("nationalPhoneNumber") or "",
                 "totalScore": p.get("rating"),
                 "reviewsCount": p.get("userRatingCount"),
+                "types": p.get("types") or [],
+                "primaryType": p.get("primaryType") or "",
             })
             if len(items) >= max_results:
                 return items
@@ -148,7 +151,7 @@ def run_places_search(
         raw = _run_actor(sector, town, max_results, country_code=country_code,
                          location_name=location_name)
     conn = db.get_connection()
-    inserted = skipped_chain = skipped_dupe = backfilled = 0
+    inserted = skipped_chain = skipped_dupe = backfilled = skipped_sector_mismatch = 0
     try:
         for item in raw:
             mapped = _map_place(item, sector, town)
@@ -156,6 +159,11 @@ def run_places_search(
                 continue
             if util.is_chain(mapped["name"]) or franchises.is_franchise(mapped["name"]):
                 skipped_chain += 1  # national chain or real-estate franchise office
+                continue
+            if util.sector_mismatch(sector, mapped["name"], item):
+                skipped_sector_mismatch += 1
+                print(f"  ! skipped (wrong business type for '{sector}'): "
+                      f"{mapped['name']} ({mapped['town']})")
                 continue
             # place_id dedup first — a stable Google ID catches true duplicates
             # that (name, town)+domain matching misses (renamed/re-categorised
@@ -191,4 +199,5 @@ def run_places_search(
         "skipped_chain": skipped_chain,
         "skipped_dupe": skipped_dupe,
         "backfilled_address": backfilled,
+        "skipped_sector_mismatch": skipped_sector_mismatch,
     }
