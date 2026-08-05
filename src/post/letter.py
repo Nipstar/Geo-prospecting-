@@ -429,7 +429,7 @@ def draft_letters_for_post(limit: int = 25, dry_run: bool = False,
                  AND NOT EXISTS (SELECT 1 FROM letters l WHERE l.company_id = c.id)
                  AND (?1 IS NULL OR COALESCE(
                      (SELECT v.composite_score FROM visibility_checks v
-                      WHERE v.company_id = c.id ORDER BY v.id DESC LIMIT 1), 0) <= ?1)
+                      WHERE v.company_id = c.id ORDER BY v.id DESC LIMIT 1), 0) < ?1)
                ORDER BY COALESCE(c.pitchability_score, 0) DESC, c.id LIMIT ?2""",
             (max_score, limit),
         ).fetchall()

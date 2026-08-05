@@ -624,9 +624,10 @@ def post() -> None:
 
 @post.command("draft")
 @click.option("--limit", default=25, type=int)
-@click.option("--max-score", "max_score", default=None, type=float,
-              help="Skip leads already visible in AI (score above this, e.g. 65). "
-                   "They're a poor fit for a 'you're invisible' letter.")
+@click.option("--max-score", "max_score", default=50.0, type=float,
+              help="Skip leads already visible in AI (score at/above this). "
+                   "They're a poor fit for a 'you're invisible' letter. "
+                   "Pass --max-score=-1 (or any value >=100) to disable.")
 @click.option("--dry-run", is_flag=True)
 def post_draft(limit: int, max_score: float | None, dry_run: bool) -> None:
     from .post import letter

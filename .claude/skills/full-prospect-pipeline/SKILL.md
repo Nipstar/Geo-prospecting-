@@ -139,11 +139,29 @@ each chunk if running many.
 
 ```
 uv run cli draft --batch --status checked --limit <n>     # LinkedIn sequences
-uv run cli post draft --limit <n> [--max-score 65]         # postal letters
+uv run cli post draft --limit <n>                          # postal letters, --max-score defaults to 50
 ```
 Both already apply the franchise defensive check and `clean_display_name()`
 at render time — do not write `company["name"]` / `co["name"]` directly
 anywhere new added to this flow.
+
+`cli post draft` skips any company already scoring 50+ on AI visibility by
+default (a "you're invisible" letter is a bad pitch to someone already
+visible — wasted postage). Only override `--max-score` if the operator
+explicitly asks for a different cutoff or to disable it.
+
+### Letter footer / sender address (standing rule)
+
+- **UK letters**: footer address is Chantry House, 38 Chantry Way, Andover,
+  SP10 1LZ.
+- **US letters**: footer address is 4 Highlands Road, Andover, Hampshire,
+  SP10 2PX.
+- **PostGrid return/from address**: always 4 Highlands Road, Andover,
+  Hampshire, SP10 2PX, regardless of which market the letter is for
+  (`POSTGRID_FROM_LINE1` etc. in `src/config.py` — do not change this for US
+  vs UK).
+- Address appears in the **footer only**, never the header — header is logo
+  only (see `src/post/postgrid_html.py` HEADER comment).
 
 Then build claim pages:
 ```

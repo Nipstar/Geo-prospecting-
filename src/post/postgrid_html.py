@@ -252,7 +252,7 @@ def uk_html(logo_uri: str | None = None) -> str:
 
   <!-- FOOTER -->
   <div class="foot">
-    Antek Automation &middot; 4 Highlands Road, Andover, Hampshire, SP10 2PX &middot; 0333 038 9960 &middot; antekautomation.com
+    Antek Automation &middot; Chantry House, 38 Chantry Way, Andover, SP10 1LZ &middot; 0333 038 9960 &middot; antekautomation.com
   </div>
 
 </body>
@@ -324,7 +324,7 @@ def us_html(logo_uri: str | None = None) -> str:
 
   <!-- FOOTER -->
   <div class="foot">
-    Antek Automation &middot; antekautomation.com
+    Antek Automation &middot; 4 Highlands Road, Andover, Hampshire, SP10 2PX &middot; antekautomation.com
   </div>
 
 </body>

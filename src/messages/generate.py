@@ -72,7 +72,7 @@ def draft_sequence(person_id: int, write: bool = True) -> dict:
         )
         raw = llm.complete(
             "generate", system=voice.system_prompt(), user=user,
-            temperature=0.7, max_tokens=900, json_mode=True,
+            temperature=0.7, max_tokens=1500, json_mode=True,
         )
         data = llm.parse_json(raw)
 
