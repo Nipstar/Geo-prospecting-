@@ -14,6 +14,7 @@ If every engine errors (0 platforms tested) it raises rather than fabricating a
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 
 from .. import config, db
@@ -41,13 +42,51 @@ def _known_competitor_names(conn, company) -> list[str]:
     return [o["name"] for o in others]
 
 
+_SUFFIX_RE = re.compile(r"\b(ltd|limited|llp|plc|inc|co)\b", re.I)
+_PUNCT_RE = re.compile(r"[^a-z0-9 ]")
+
+
+def _core_brand_tokens(name: str) -> str:
+    core = _SUFFIX_RE.sub("", (name or "").lower())
+    core = _PUNCT_RE.sub(" ", core)
+    return re.sub(r"\s+", " ", core).strip()
+
+
+def is_brand_query(query: str, company_name: str) -> bool:
+    """True if the query text itself names the company (e.g. "What is Acme
+    Ltd?", "Acme reviews"). Such queries trivially pass on every engine that
+    has ever indexed the company's own site — the question already contains
+    the answer — so they get excluded from the scored set. A real check
+    (FlowFormTax, 2026-08-06) mixed one in and it single-handedly bought the
+    full 70-point mention-rate component despite 0/4 genuine discovery
+    questions ever surfacing the company; corrected composite was 0/100, not
+    the blended 76/100. Still probed and shown in the report — just never
+    counted toward the composite or per-engine scores."""
+    core = _core_brand_tokens(company_name)
+    if not core:
+        return False
+    return core in (query or "").lower()
+
+
 def score_company(conn, company, queries=None, engines=None, check_type="mini") -> dict:
-    """Run/read probes, score with the 70/30 rubric, write a check row."""
-    queries = queries or prompts.build_queries(company)
+    """Run/read probes, score with the 70/30 rubric, write a check row.
+
+    Brand-name queries (see is_brand_query) are probed alongside the rest —
+    kept in the returned/stored `queries` list for report display — but
+    excluded from every scoring tally so they can't inflate the composite.
+    If every supplied query is a brand query, scoring falls back to the full
+    set rather than raising, on the assumption the operator wants *a*
+    number rather than a crash.
+    """
+    queries = list(queries or prompts.build_queries(company))
     engines = engines or config.CHECK_ENGINES
     name = company["name"]
     domain = domain_of(company["website"])
     universe = _known_competitor_names(conn, company)
+
+    scored_queries = [q for q in queries if not is_brand_query(q, name)]
+    if not scored_queries:
+        scored_queries = queries
 
     per_engine: dict[str, dict] = {e: {"answered": 0, "mentioned": 0} for e in engines}
     competitor_counts: dict[str, dict] = {}
@@ -61,12 +100,15 @@ def score_company(conn, company, queries=None, engines=None, check_type="mini") 
             res = probes.run_probe(conn, engine, query)
             if not res["answered"]:
                 continue
-            per_engine[engine]["answered"] += 1
             total_cost += res.get("cost_usd", 0.0)
             det = ai_query.detect_brand_mention(res["text"], name, domain)
-            if det["mentioned"]:
-                per_engine[engine]["mentioned"] += 1
+            if query in scored_queries:
+                per_engine[engine]["answered"] += 1
+                if det["mentioned"]:
+                    per_engine[engine]["mentioned"] += 1
             # General competitor extraction (list/bold, multi-word firms).
+            # Runs on every query, brand ones included — more signal on who
+            # else gets named, unaffected by the scoring exclusion above.
             for comp in ai_query.extract_competitors(res["text"], name):
                 key = ai_query.normalize_brand_name(comp)
                 slot = competitor_counts.setdefault(key, {"name": comp, "mentions": 0})
@@ -124,7 +166,10 @@ def score_company(conn, company, queries=None, engines=None, check_type="mini") 
             top.append(cleaned)
     competitor_named = ", ".join(top[:2]) if top else None
 
-    headline = _headline_finding(company, queries, platforms_mentioned, top)
+    # scored_queries, not queries — a brand query in the count would make
+    # "asked N different ways" overstate how many real discovery angles were
+    # actually checked.
+    headline = _headline_finding(company, scored_queries, platforms_mentioned, top)
 
     row = {
         "run_date": date.today().isoformat(),

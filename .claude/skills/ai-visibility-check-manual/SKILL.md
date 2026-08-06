@@ -10,34 +10,33 @@ for flowformtax.co.uk with these 5 questions". Different from
 `full-prospect-pipeline`, which is a batch sector/town search with
 auto-generated prompts.
 
-## Hard rule: never let a brand-name query count toward the score
+## Brand-name queries are auto-excluded from scoring (code-enforced)
 
-**The score formula's 70-point "platforms_mentioned" component is binary per
-engine: mentioned in ANY scored query = full credit for that engine.** A
-self-referential query like "What is Acme Ltd?" trivially passes on every
-engine that has ever indexed the company's own site — it always "mentions"
-them because the question IS the brand name. Mixing a brand query into the
-scored set inflates the composite even when the company is invisible on
-every real discovery question.
+`score.score_company()` (`src/visibility/score.py`) auto-detects brand
+queries via `is_brand_query(query, company_name)` — true when the company
+name's core tokens (legal suffixes stripped) appear inside the query text
+itself, e.g. "What is Acme Ltd?", "Acme reviews". These are still probed
+and still show up in the report (full `queries` list is stored/rendered),
+but excluded from every scoring tally: `platforms_tested`,
+`platforms_mentioned`, `prompts_total`, `prompts_mentioned`, per-engine
+scores, and the headline's "asked N different ways" count.
 
-This bit a real check (FlowFormTax, 2026-08-06): 0/4 on genuine discovery
-questions, 5/5 on "What is FlowFormTax?" alone, and the blended composite
-came out 76/100 — completely misrepresenting the actual finding, which was
-total invisibility. Corrected to 0/100 once the brand query was pulled out
-of scoring.
+**Why this exists**: a self-referential query trivially passes on every
+engine that has ever indexed the company's own site — the question already
+contains the answer. Before this fix, mixing one into the scored set could
+massively inflate the composite. Caught on a real check (FlowFormTax,
+2026-08-06): 0/4 on genuine discovery questions, 5/5 on "What is
+FlowFormTax?" alone, blended composite came out 76/100 — completely
+misrepresenting an actual finding of total invisibility. Fixed first as a
+manual workaround (split queries by hand before calling score_company),
+then baked into `score_company()` itself so no operator discipline is
+required — pass all the queries the operator gave you, brand question
+included, and it self-corrects.
 
-**Rule**: if the operator wants a brand-recognition question included
-alongside discovery questions, keep it — it's a genuinely useful data point
-("does the AI know who you are at all") — but exclude it from the query list
-passed into `score.score_company()`. Score only on questions a real
-prospective customer would actually ask. Probe the brand query separately
-and fold it into the displayed report as an extra, unscored row.
-
-How to tell which queries are "brand" vs "discovery": a query is a brand
-query if the company name (or an obvious short form of it) appears in the
-query text itself ("What is X?", "Tell me about X", "X reviews"). Everything
-else — pain points, category terms, "best X for Y" — is a discovery query
-and belongs in scoring.
+No special handling needed at call time: just pass every question the
+operator gave you into `queries=`. Only worth a heads-up to the operator if
+`is_brand_query()` would classify something unexpectedly (rare — check with
+`from src.visibility.score import is_brand_query` if unsure on an edge case).
 
 ## Steps
 
@@ -61,42 +60,32 @@ and belongs in scoring.
    won't collide, or check `antek_geo_core.competitors.VERTICAL_NOUN_PHRASES`
    first if unsure.
 
-2. **Split the operator's questions into scored (discovery) vs unscored (brand).**
-   Typical shape (mirrors how these are usually briefed): 2 pain/use-case
-   angles, 1 core use-case query, 1 category term the company could own —
-   all scored — plus optionally 1 brand-check query, unscored.
+2. **Take the operator's questions as given.** Typical shape (mirrors how
+   these are usually briefed): 2 pain/use-case angles, 1 core use-case
+   query, 1 category term the company could own, optionally 1 brand-check
+   query. No need to split them yourself — pass the whole list straight
+   into `score_company()`; brand-query exclusion happens automatically.
 
-3. **Run the scored check.**
+3. **Run the check.**
    ```python
    from src import config
    from src.visibility import score
-   result = score.score_company(conn, company, queries=discovery_queries,
+   result = score.score_company(conn, company, queries=all_operator_queries,
                                   engines=config.CHECK_ENGINES, check_type="full")
    ```
    This writes the `visibility_checks` row, including the `queries` column
-   (JSON list) — required so the report page later renders from the exact
-   queries actually run, not a re-guess. Cost ~$0.03-0.05 per query across
-   5 engines; confirm with the operator first if running many companies.
+   (JSON list of everything passed in, brand questions included) — required
+   so the report page later renders from the exact queries actually run,
+   not a re-guess. Cost ~$0.03-0.05 per query across 5 engines; confirm with
+   the operator first if running many companies.
 
-4. **If a brand query was requested, probe it separately and append for display only.**
-   ```python
-   from src.visibility import probes
-   check = db.latest_check(conn, company["id"])
-   for engine in config.CHECK_ENGINES:
-       probes.run_probe(conn, engine, brand_query)   # writes to probe_cache, same run_date
-   import json
-   all_queries = discovery_queries + [brand_query]
-   db.update_check(conn, check["id"], queries=json.dumps(all_queries))
-   ```
-   Composite/engine scores stay as computed in step 3 — do not recompute
-   them including the brand query.
+4. **Build the client PDF** (reuses `report.py`'s render path — see
+   `build_full_report` for the full pattern; construct it inline, reading
+   `queries` back from the check row via `json.loads(check["queries"])` so
+   the report shows every question, brand one included, with the correct
+   already-computed composite).
 
-5. **Build the client PDF** (reuses `report.py`'s render path — see
-   `build_full_report` for the full pattern; construct it inline with the
-   corrected `queries` list so the report shows all questions including the
-   brand one).
-
-6. **Rebuild claim pages + deploy.**
+5. **Rebuild claim pages + deploy.**
    ```
    CAL_LINK=antek-automation/30min CLAIM_SITE_URL=https://go.antekautomation.com \
      uv run python claim-site/build.py --limit 2000
@@ -111,10 +100,10 @@ and belongs in scoring.
      and hand over both links, don't wait to be asked for the report link
      separately.
 
-7. **Push the client PDF to GitHub** (binaries as releases, not Drive —
+6. **Push the client PDF to GitHub** (binaries as releases, not Drive —
    standing workaround): `gh release create <slug>-visibility-check-<date> ...`
 
-8. **Hand back both URLs**: claim page + `/report/<slug>` full report link.
+7. **Hand back both URLs**: claim page + `/report/<slug>` full report link.
    State the score plainly and, if it's low, say so — don't soften a
    genuine 0/100.
 
