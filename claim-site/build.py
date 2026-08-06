@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import textwrap
@@ -274,11 +275,21 @@ def build(status: str | None, limit: int) -> list[str]:
         comp_list = [c.strip() for c in comp_str.split(",") if c.strip()]
         firm_display = clean_display_name(co["name"])
         core = _core_name(firm_display).lower()
-        # THIS company's queries only — look each up in the probe cache.
+        # THIS company's queries only. Prefer the exact queries the check
+        # actually ran (visibility_checks.queries, JSON list) — required for
+        # manual/custom-prompt checks, where the auto-generated set from
+        # prompts.build_queries() would not match what's in probe_cache at
+        # all and silently render an empty question list. Older rows from
+        # before this column existed fall back to regeneration.
+        if v["queries"]:
+            check_queries = json.loads(v["queries"])
+        else:
+            check_queries = prompts.build_queries(co)
         by_query: dict[str, dict] = {}
-        for q in prompts.build_queries(co):
+        for q in check_queries:
             crows = conn.execute(
-                "select engine, response_text from probe_cache where query=?", (q,)
+                "select engine, response_text from probe_cache where query=? and run_date=?",
+                (q, v["run_date"]),
             ).fetchall()
             if crows:
                 by_query[q] = {cr["engine"]: cr["response_text"] or "" for cr in crows}

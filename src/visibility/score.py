@@ -13,6 +13,7 @@ If every engine errors (0 platforms tested) it raises rather than fabricating a
 """
 from __future__ import annotations
 
+import json
 from datetime import date
 
 from .. import config, db
@@ -134,6 +135,13 @@ def score_company(conn, company, queries=None, engines=None, check_type="mini") 
         "cost_usd": round(total_cost, 5),
         "headline_finding": headline,
         "competitor_named": competitor_named,
+        # Exact queries this check ran, JSON-encoded. probe_cache has no
+        # company_id (only query text + date), so without this the /report
+        # HTML page has no way to know which queries were this company's when
+        # they differ from prompts.build_queries() auto-generation (custom
+        # manual checks) — it silently regenerated the wrong set and rendered
+        # an empty question list. See ai-visibility-check-manual skill.
+        "queries": json.dumps(list(queries)),
     }
     for e, col in ENGINE_COLUMN.items():
         if e in engine_scores:

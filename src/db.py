@@ -257,6 +257,13 @@ _ADDED_COLUMNS = [
     # matching, which missed near-exact variants (punctuation, legal suffix
     # differences) and mislabelled them as unmatched sole traders.
     ("companies", "ch_match_confidence", "REAL"),
+    # Exact queries a check ran, JSON-encoded list (2026-08-06). probe_cache
+    # has no company_id (only query text + run_date), so the /report HTML
+    # page had no way to recover which queries were this company's when they
+    # differ from prompts.build_queries() auto-generation — broke silently
+    # (empty question list) for manual/custom-prompt checks. See
+    # ai-visibility-check-manual skill.
+    ("visibility_checks", "queries", "TEXT"),
 ]
 
 

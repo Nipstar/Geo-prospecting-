@@ -135,6 +135,12 @@ Chunked via worker for volume. Cost is shown/estimated automatically by the
 command itself (`_estimate_probe_cost`) — surface it to the operator before
 each chunk if running many.
 
+For a single named company with custom prompts instead of a batch/town
+sweep (operator gives one business + specific questions), use the
+`ai-visibility-check-manual` skill instead of this stage — different
+flow, same underlying `score.score_company()` call, but with a hard rule
+about not letting a brand-name query skew the composite score.
+
 ## Stage 5 — Draft content
 
 ```
