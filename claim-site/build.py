@@ -204,8 +204,18 @@ def build(status: str | None, limit: int) -> list[str]:
         # never appears verbatim in an AI answer, so matching on it under-
         # counts real mentions as well as looking bad on the page.
         firm_display = clean_display_name(co["name"])
-        quotes = _quotes(conn, prompts.build_queries(co, limit=FREE_CHECK_QUERIES),
-                         firm=firm_display, comps=comp_list)
+        # Same bug class fixed on the /report page (2026-08-07): prefer the
+        # exact queries the check actually ran (v["queries"], JSON list) over
+        # regenerating via prompts.build_queries() — for a manual/custom
+        # check the regenerated set doesn't match what's in probe_cache at
+        # all, so this teaser silently rendered zero quotes (caught on
+        # Nova Lux DR Properties). Older rows with no queries column fall
+        # back to regeneration.
+        if v["queries"]:
+            teaser_queries = json.loads(v["queries"])[:FREE_CHECK_QUERIES]
+        else:
+            teaser_queries = prompts.build_queries(co, limit=FREE_CHECK_QUERIES)
+        quotes = _quotes(conn, teaser_queries, firm=firm_display, comps=comp_list)
         rivals_named = sum(1 for q in quotes if not q["appears"])
         sw = SECTOR_WORD.get(sector, sector or "firm")
         rival_chips = _rival_chips(" ".join(q["raw"] for q in quotes),
