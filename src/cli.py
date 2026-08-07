@@ -346,6 +346,77 @@ def check_full(company_id: int, yes: bool) -> None:
         conn.close()
 
 
+@check.command("custom")
+@click.option("--company-id", type=int, help="Existing company. Omit to create one with --name/--website.")
+@click.option("--name", help="New company name (required if --company-id omitted).")
+@click.option("--website", help="New company website (required if --company-id omitted).")
+@click.option("--sector", default=None,
+              help="Free-text sector/service line. Avoid substrings that collide with "
+                   "antek_geo_core.competitors.VERTICAL_NOUN_PHRASES (e.g. a SaaS sector "
+                   "string containing \"accounting\" gets mislabelled \"an accountancy firm\" "
+                   "in the headline) — check that mapping first if unsure.")
+@click.option("--query", "queries", multiple=True, required=True,
+              help="A discovery/brand question to probe. Repeat for each question, "
+                   "e.g. --query \"...\" --query \"...\". Brand-name queries (the company's "
+                   "own name appears in the query text) are auto-detected and excluded from "
+                   "scoring but still probed and shown in the report.")
+@click.option("--country", default=None,
+              help="Market for the AI Overview probe (e.g. US, UK). Defaults to CHECK_COUNTRY "
+                   "env var, then UK. ALWAYS ask the operator which market before running if "
+                   "not obviously implied (currency on the site, .com vs .co.uk, stated "
+                   "location) — this silently defaulted to UK once and produced a technically "
+                   "correct but market-blind AI Overview result for a US company.")
+@click.option("--yes", is_flag=True)
+def check_custom(company_id: int | None, name: str | None, website: str | None,
+                  sector: str | None, queries: tuple[str, ...], country: str | None,
+                  yes: bool) -> None:
+    """One-off AI visibility check with custom prompts (not the pipeline's
+    auto-generated queries). See the ai-visibility-check-manual skill."""
+    from .visibility import report, score as score_mod
+    from .ingest.util import find_duplicate
+
+    if country:
+        config.CHECK_COUNTRY = country.strip()
+
+    est = _estimate_probe_cost(1)
+    console.print(f"[yellow]Custom check runs {len(queries)} queries x 5 engines. "
+                  f"Est cost ~${est}. Market: {config.CHECK_COUNTRY}[/yellow]")
+    if not yes and not click.confirm("Proceed?"):
+        return
+
+    conn = db.get_connection()
+    try:
+        if company_id:
+            company = db.get_company(conn, company_id)
+            if not company:
+                console.print(f"[red]No company with id {company_id}.[/red]")
+                return
+        else:
+            if not name or not website:
+                console.print("[red]Pass --company-id, or both --name and --website to create one.[/red]")
+                return
+            existing = find_duplicate(conn, name, None, website)
+            if existing:
+                company = existing
+                console.print(f"[yellow]Reusing existing company id={company['id']} ({company['name']}).[/yellow]")
+            else:
+                cid = db.insert_company(
+                    conn, name=name, website=website, town=None, county=None,
+                    sector=sector, primary_service=sector, source="manual", status="new",
+                )
+                conn.commit()
+                company = db.get_company(conn, cid)
+                console.print(f"[green]Inserted company id={cid}.[/green]")
+        try:
+            res = report.build_full_report(conn, company, queries=list(queries))
+        except score_mod.VisibilityProbeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
+        console.print(f"[green]Report: {res['report_path']}[/green] (score {res['composite']}/100)")
+    finally:
+        conn.close()
+
+
 @check.command("show")
 @click.option("--company-id", required=True, type=int)
 def check_show(company_id: int) -> None:

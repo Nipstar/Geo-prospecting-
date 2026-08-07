@@ -184,8 +184,9 @@ CREATE TABLE IF NOT EXISTS probe_cache (
     query TEXT,
     engine TEXT,
     run_date TEXT,
+    country TEXT NOT NULL DEFAULT 'UK',   -- gl-code market the probe ran under
     response_text TEXT,
-    UNIQUE (query, engine, run_date)
+    UNIQUE (query, engine, run_date, country)
 );
 
 CREATE INDEX IF NOT EXISTS idx_companies_status ON companies(status);
@@ -267,6 +268,34 @@ _ADDED_COLUMNS = [
 ]
 
 
+def _migrate_probe_cache_country(conn: sqlite3.Connection) -> None:
+    """probe_cache's UNIQUE constraint didn't include country until
+    2026-08-07 — a same-day rerun with a different CHECK_COUNTRY silently
+    returned the wrong-geo cached AI Overview answer instead of refetching
+    (caught running xautomatex.net once as UK, then meaning to as US).
+    SQLite can't ALTER a UNIQUE constraint, hence the rebuild. Existing rows
+    predate country-awareness and were all captured under the then-hardcoded
+    UK default, so they backfill country='UK'."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(probe_cache)")}
+    if "country" in cols:
+        return  # already migrated
+    conn.executescript("""
+        ALTER TABLE probe_cache RENAME TO probe_cache_pre_country;
+        CREATE TABLE probe_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT,
+            engine TEXT,
+            run_date TEXT,
+            country TEXT NOT NULL DEFAULT 'UK',
+            response_text TEXT,
+            UNIQUE (query, engine, run_date, country)
+        );
+        INSERT INTO probe_cache (id, query, engine, run_date, country, response_text)
+            SELECT id, query, engine, run_date, 'UK', response_text FROM probe_cache_pre_country;
+        DROP TABLE probe_cache_pre_country;
+    """)
+
+
 def run_migrations(conn: sqlite3.Connection | None = None) -> None:
     """Create every table and index, then add any columns introduced later.
     Idempotent — safe to run on every command."""
@@ -274,6 +303,7 @@ def run_migrations(conn: sqlite3.Connection | None = None) -> None:
     conn = conn or get_connection()
     try:
         conn.executescript(SCHEMA)
+        _migrate_probe_cache_country(conn)
         for table, column, decl in _ADDED_COLUMNS:
             existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
             if column not in existing:
@@ -564,18 +594,21 @@ def advance_status(
         log_event(conn, company_id, event, value_gbp)
 
 
-def probe_cache_get(conn: sqlite3.Connection, query: str, engine: str, run_date: str) -> str | None:
+def probe_cache_get(conn: sqlite3.Connection, query: str, engine: str, run_date: str,
+                     country: str = "UK") -> str | None:
     row = conn.execute(
-        "SELECT response_text FROM probe_cache WHERE query=? AND engine=? AND run_date=?",
-        (query, engine, run_date),
+        "SELECT response_text FROM probe_cache WHERE query=? AND engine=? AND run_date=? AND country=?",
+        (query, engine, run_date, country),
     ).fetchone()
     return row["response_text"] if row else None
 
 
-def probe_cache_put(conn: sqlite3.Connection, query: str, engine: str, run_date: str, text: str) -> None:
+def probe_cache_put(conn: sqlite3.Connection, query: str, engine: str, run_date: str, text: str,
+                     country: str = "UK") -> None:
     conn.execute(
-        "INSERT OR REPLACE INTO probe_cache (query, engine, run_date, response_text) VALUES (?,?,?,?)",
-        (query, engine, run_date, text),
+        "INSERT OR REPLACE INTO probe_cache (query, engine, run_date, country, response_text) "
+        "VALUES (?,?,?,?,?)",
+        (query, engine, run_date, country, text),
     )
     conn.commit()
 

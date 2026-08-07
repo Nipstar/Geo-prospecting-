@@ -3,7 +3,12 @@
 Four consumer flagships via one OpenRouter key (ChatGPT, Claude, Gemini,
 Perplexity) plus Google AI Overview via SerpAPI. Each probe returns
 {text, cost_usd, answered}. Raw responses are cached in probe_cache keyed on
-(query, engine, date) so re-runs are free.
+(query, engine, date, country) so re-runs are free — country included since
+2026-08-07 (see db._migrate_probe_cache_country) because the AI Overview
+probe is geo-parameterized (config.country_geo()) and a same-day rerun under
+a different CHECK_COUNTRY must not silently reuse the other market's cached
+answer. The 4 LLM engines aren't geo-parameterized, so country is a no-op
+for them beyond a harmless extra cache dimension.
 """
 from __future__ import annotations
 
@@ -16,12 +21,16 @@ from .. import config, db
 from . import ai_query
 
 
+def _cache_country() -> str:
+    return (config.CHECK_COUNTRY or "UK").strip().upper()
+
+
 def _cached(conn, query: str, engine: str) -> str | None:
-    return db.probe_cache_get(conn, query, engine, date.today().isoformat())
+    return db.probe_cache_get(conn, query, engine, date.today().isoformat(), _cache_country())
 
 
 def _store(conn, query: str, engine: str, text: str) -> None:
-    db.probe_cache_put(conn, query, engine, date.today().isoformat(), text)
+    db.probe_cache_put(conn, query, engine, date.today().isoformat(), text, _cache_country())
 
 
 def probe_model(conn, engine: str, query: str) -> dict:

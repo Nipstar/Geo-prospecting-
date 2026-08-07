@@ -106,9 +106,14 @@ def _addressee(conn, company) -> str:
     return "The Owner"
 
 
-def build_full_report(conn, company) -> dict:
-    """Run a fresh full check and render the PDF. Returns paths and scores."""
-    queries = prompts.build_queries(company)
+def build_full_report(conn, company, queries: list[str] | None = None) -> dict:
+    """Run a fresh full check and render the PDF. Returns paths and scores.
+
+    queries: pass custom prompts for a one-off/manual check (e.g. via
+    `cli check custom`) instead of the pipeline's auto-generated set. Brand
+    queries in a custom list are auto-excluded from scoring (see
+    score.is_brand_query) but still probed and shown in the report."""
+    queries = list(queries) if queries else prompts.build_queries(company)
     result = score.score_company(
         conn, company, queries=queries, engines=config.CHECK_ENGINES, check_type="full"
     )
