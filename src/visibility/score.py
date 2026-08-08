@@ -14,8 +14,10 @@ If every engine errors (0 platforms tested) it raises rather than fabricating a
 from __future__ import annotations
 
 import json
-import re
 from datetime import date
+
+from antek_geo_core import is_brand_query  # canonical impl, also re-exported for
+# `from src.visibility.score import is_brand_query` call sites (skill docs, tests)
 
 from .. import config, db
 from ..ingest.util import domain_of
@@ -40,32 +42,6 @@ def _known_competitor_names(conn, company) -> list[str]:
         conn, company["town"] or "", company["sector"] or "", exclude_id=company["id"]
     )
     return [o["name"] for o in others]
-
-
-_SUFFIX_RE = re.compile(r"\b(ltd|limited|llp|plc|inc|co)\b", re.I)
-_PUNCT_RE = re.compile(r"[^a-z0-9 ]")
-
-
-def _core_brand_tokens(name: str) -> str:
-    core = _SUFFIX_RE.sub("", (name or "").lower())
-    core = _PUNCT_RE.sub(" ", core)
-    return re.sub(r"\s+", " ", core).strip()
-
-
-def is_brand_query(query: str, company_name: str) -> bool:
-    """True if the query text itself names the company (e.g. "What is Acme
-    Ltd?", "Acme reviews"). Such queries trivially pass on every engine that
-    has ever indexed the company's own site — the question already contains
-    the answer — so they get excluded from the scored set. A real check
-    (FlowFormTax, 2026-08-06) mixed one in and it single-handedly bought the
-    full 70-point mention-rate component despite 0/4 genuine discovery
-    questions ever surfacing the company; corrected composite was 0/100, not
-    the blended 76/100. Still probed and shown in the report — just never
-    counted toward the composite or per-engine scores."""
-    core = _core_brand_tokens(company_name)
-    if not core:
-        return False
-    return core in (query or "").lower()
 
 
 def score_company(conn, company, queries=None, engines=None, check_type="mini") -> dict:
